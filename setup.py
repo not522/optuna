@@ -131,6 +131,7 @@ def get_extras_require() -> Dict[str, List[str]]:
             "pandas",
             "plotly>=4.0.0",
             "pytest",
+            "pytest-benchmark",
             "scikit-learn>=0.19.0,<0.23.0",
             "scikit-optimize",
             "xgboost",
@@ -153,6 +154,7 @@ def get_extras_require() -> Dict[str, List[str]]:
         "tests": [
             "fakeredis",
             "pytest",
+            "pytest-benchmark",
         ],
         "optional": [
             "bokeh<2.0.0",  # optuna/cli.py, optuna/dashboard.py.
