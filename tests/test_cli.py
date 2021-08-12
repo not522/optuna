@@ -417,15 +417,13 @@ def test_storage_upgrade_command() -> None:
 
 
 @pytest.mark.parametrize(
-    "direction,directions,sampler,sampler_kwargs,out",
+    "direction,directions,sampler,sampler_kwargs",
     [
-        (None, None, None, None, None),
-        ("minimize", None, None, None, None),
-        (None, "minimize maximize", None, None, None),
-        (None, None, "RandomSampler", None, None),
-        (None, None, "TPESampler", '{"multivariate": true}', None),
-        (None, None, None, None, "json"),
-        (None, None, None, None, "yaml"),
+        (None, None, None, None),
+        ("minimize", None, None, None),
+        (None, "minimize maximize", None, None),
+        (None, None, "RandomSampler", None),
+        (None, None, "TPESampler", '{"multivariate": true}'),
     ],
 )
 def test_ask(
@@ -433,7 +431,6 @@ def test_ask(
     directions: Optional[str],
     sampler: Optional[str],
     sampler_kwargs: Optional[str],
-    out: Optional[str],
 ) -> None:
 
     study_name = "test_study"
@@ -454,6 +451,8 @@ def test_ask(
             study_name,
             "--search-space",
             search_space,
+            "--format",
+            "json",
         ]
 
         if direction is not None:
@@ -464,21 +463,15 @@ def test_ask(
             args += ["--sampler", sampler]
         if sampler_kwargs is not None:
             args += ["--sampler-kwargs", sampler_kwargs]
-        if out is not None:
-            args += ["--out", out]
 
         output: Any = subprocess.check_output(args)
         output = output.decode("utf-8")
+        output = json.loads(output)
 
-        if out is None or out == "json":
-            output = json.loads(output)
-        else:  # "yaml".
-            output = yaml.load(output)
-
-        assert output["trial"]["number"] == 0
-        assert len(output["trial"]["params"]) == 2
-        assert 0 <= output["trial"]["params"]["x"] < 1
-        assert output["trial"]["params"]["y"] == "foo"
+        assert len(output) == 3
+        assert output["number"] == 0
+        assert 0 <= output["x"] < 1
+        assert output["y"] == "foo"
 
 
 def test_ask_empty_search_space() -> None:
@@ -494,14 +487,16 @@ def test_ask_empty_search_space() -> None:
             db_url,
             "--study-name",
             study_name,
+            "--format",
+            "json"
         ]
 
         output: Any = subprocess.check_output(args)
         output = output.decode("utf-8")
         output = json.loads(output)
 
-        assert output["trial"]["number"] == 0
-        assert len(output["trial"]["params"]) == 0
+        assert len(output) == 1
+        assert output["number"] == 0
 
 
 def test_tell() -> None:
@@ -518,11 +513,13 @@ def test_tell() -> None:
                 db_url,
                 "--study-name",
                 study_name,
+                "--format",
+                "json"
             ]
         )
         output = output.decode("utf-8")
         output = json.loads(output)
-        trial_number = output["trial"]["number"]
+        trial_number = output["number"]
 
         output = subprocess.check_output(
             [

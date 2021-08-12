@@ -9,6 +9,7 @@ c.f. https://docs.openstack.org/cliff/latest/user/demoapp.html#setup-py
 
 from argparse import ArgumentParser  # NOQA
 from argparse import Namespace  # NOQA
+from collections import OrderedDict
 from importlib.machinery import SourceFileLoader
 import json
 import logging
@@ -24,7 +25,7 @@ from cliff.app import App
 from cliff.command import Command
 from cliff.commandmanager import CommandManager
 from cliff.lister import Lister
-import yaml
+from cliff.show import ShowOne
 
 import optuna
 from optuna._deprecated import deprecated
@@ -373,7 +374,7 @@ class _StorageUpgrade(_BaseCommand):
             )
 
 
-class _Ask(_BaseCommand):
+class _Ask(_BaseCommand, ShowOne):
     """Create a new trial and suggest parameters."""
 
     def get_parser(self, prog_name: str) -> ArgumentParser:
@@ -406,9 +407,6 @@ class _Ask(_BaseCommand):
                 "Search space as JSON. Keys are names and values are outputs from "
                 ":func:`~optuna.distributions.distribution_to_json`."
             ),
-        )
-        parser.add_argument(
-            "--out", type=str, choices=("json", "yaml"), default="json", help="Output format."
         )
         return parser
 
@@ -450,23 +448,11 @@ class _Ask(_BaseCommand):
 
         study = optuna.create_study(**create_study_kwargs)
         trial = study.ask(fixed_distributions=search_space)
-        out = {
-            "trial": {
-                "number": trial.number,
-                "params": trial.params,
-            }
-        }
+        out = OrderedDict(number=trial.number, **trial.params)
 
         self.logger.info(f"Asked trial {trial.number} with parameters {trial.params}.")
 
-        if parsed_args.out == "json":
-            print(json.dumps(out))
-        elif parsed_args.out == "yaml":
-            print(yaml.dump(out))
-        else:
-            assert False
-
-        return 0
+        return out.keys(), out.values()
 
 
 class _Tell(_BaseCommand):
