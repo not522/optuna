@@ -21,6 +21,26 @@ import pkg_resources
 import plotly.io as pio
 from sphinx_gallery.sorting import FileNameSortKey
 
+nitpicky = True
+nitpick_ignore = [
+    ('py:class', 'optuna.study.study.Study'),
+    ('py:class', 'optuna.trial._frozen.FrozenTrial'),
+    ('py:class', 'optuna.storages.BaseStorage'),
+    ('py:class', 'optuna.study.BaseStudy'),
+    ('py:class', 'optuna.multi_objective.samplers._base.BaseMultiObjectiveSampler'),
+    ('py:class', 'optuna.storages._base.BaseStorage'),
+    ('py:class', 'optuna.samplers._base.BaseSampler'),
+    ('py:class', 'optuna.pruners._base.BasePruner'),
+    ('py:class', 'optuna.study._study_direction.StudyDirection'),
+    ('py:class', 'optuna.distributions.BaseDistribution'),
+    ('py:class', 'optuna.trial._trial.Trial'),
+    ('py:class', 'optuna.trial._state.TrialState'),
+    ('py:class', 'optuna.study._study_summary.StudySummary'),
+    ('py:class', 'optuna.importance.BaseImportanceEvaluator'),
+
+    ('py:class', 'pandas.core.frame.DataFrame'),
+]
+
 __version__ = pkg_resources.get_distribution("optuna").version
 
 # -- Project information -----------------------------------------------------

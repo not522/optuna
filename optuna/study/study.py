@@ -81,7 +81,7 @@ class BaseStudy(object):
         """Return the best trial in the study.
 
         Returns:
-            A :class:`~optuna.FrozenTrial` object of the best trial.
+            A :class:`~optuna.trial.FrozenTrial` object of the best trial.
 
         Raises:
             :exc:`RuntimeError`:
@@ -150,7 +150,7 @@ class BaseStudy(object):
         This is a short form of ``self.get_trials(deepcopy=True, states=None)``.
 
         Returns:
-            A list of :class:`~optuna.FrozenTrial` objects.
+            A list of :class:`~optuna.trial.FrozenTrial` objects.
         """
 
         return self.get_trials(deepcopy=True, states=None)
@@ -199,7 +199,7 @@ class BaseStudy(object):
                 Trial states to filter on. If :obj:`None`, include all states.
 
         Returns:
-            A list of :class:`~optuna.FrozenTrial` objects.
+            A list of :class:`~optuna.trial.FrozenTrial` objects.
         """
 
         self._storage.read_trials_from_remote_storage(self._study_id)
@@ -336,16 +336,16 @@ class Study(BaseStudy):
                 A callable that implements objective function.
             n_trials:
                 The number of trials. If this argument is set to :obj:`None`, there is no
-                limitation on the number of trials. If :obj:`timeout` is also set to :obj:`None`,
+                limitation on the number of trials. If ``timeout`` is also set to :obj:`None`,
                 the study continues to create trials until it receives a termination signal such
                 as Ctrl+C or SIGTERM.
             timeout:
                 Stop study after the given number of second(s). If this argument is set to
-                :obj:`None`, the study is executed without time limitation. If :obj:`n_trials` is
+                :obj:`None`, the study is executed without time limitation. If ``n_trials`` is
                 also set to :obj:`None`, the study continues to create trials until it receives a
                 termination signal such as Ctrl+C or SIGTERM.
             n_jobs:
-                The number of parallel jobs. If this argument is set to :obj:`-1`, the number is
+                The number of parallel jobs. If this argument is set to ``-1``, the number is
                 set to CPU count.
 
                 .. note::
@@ -368,7 +368,7 @@ class Study(BaseStudy):
             callbacks:
                 List of callback functions that are invoked at the end of each trial. Each function
                 must accept two parameters with the following types in this order:
-                :class:`~optuna.study.Study` and :class:`~optuna.FrozenTrial`.
+                :class:`~optuna.study.Study` and :class:`~optuna.trial.FrozenTrial`.
             gc_after_trial:
                 Flag to determine whether to automatically run garbage collection after each trial.
                 Set to :obj:`True` to run the garbage collection, :obj:`False` otherwise.
@@ -761,7 +761,7 @@ class Study(BaseStudy):
 
         Args:
             attrs:
-                Specifies field names of :class:`~optuna.FrozenTrial` to include them to a
+                Specifies field names of :class:`~optuna.trial.FrozenTrial` to include them to a
                 DataFrame of trials.
             multi_index:
                 Specifies whether the returned DataFrame_ employs MultiIndex_ or not. Columns that
