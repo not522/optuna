@@ -192,6 +192,11 @@ class GridSampler(BaseSampler):
             if grid_id == target_grids[0]:
                 study.stop()
 
+    def check_param_value(self, trial: FrozenTrial, param_name: str, param_value: Any) -> None:
+        grid_id = trial.system_attrs["grid_id"]
+        if param_value != self._all_grids[grid_id][self._param_names.index(param_name)]:
+            warnings.warn("TODO")
+
     @staticmethod
     def _check_value(param_name: str, param_value: Any) -> None:
 

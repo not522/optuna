@@ -185,6 +185,21 @@ class BaseSampler(object, metaclass=abc.ABCMeta):
         for sampler in self.get_child_samplers():
             sampler.after_trial(study, trial, state, values)
 
+    def check_param_value(self, trial: FrozenTrial, param_name: "str", param_value: Any) -> None:
+        """TODO
+
+        Args:
+            trial:
+                Target trial object.
+            param_name:
+                Parameter name.
+            param_value:
+                Parameter value.
+        """
+
+        for sampler in self.get_child_samplers():
+            sampler.check_param_value(trial, param_name, param_value)
+
     def reseed_rng(self) -> None:
         """Reseed sampler's random number generator.
 

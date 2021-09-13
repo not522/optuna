@@ -109,3 +109,8 @@ class PartialFixedSampler(BaseSampler):
 
     def get_child_samplers(self) -> List[BaseSampler]:
         return [self._base_sampler]
+
+    def check_param_value(self, trial: FrozenTrial, param_name: str, param_value: Any) -> None:
+        if param_name in self._fixed_params and param_value != self._fixed_params[param_name]:
+            warnings.warn("TODO")
+        self._base_sampler.check_param_value(trial, param_name, param_value)
