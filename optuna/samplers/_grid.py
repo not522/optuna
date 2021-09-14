@@ -125,6 +125,20 @@ class GridSampler(BaseSampler):
         # object is hard to get at the beginning of trial, while we need the access to the object
         # to validate the sampled value.
 
+        if "fixed_params" in trial.system_attrs:
+            target_grids = self._get_all_unvisited_grid_ids(study)
+            for grid_id in target_grids:
+                for param_name, param_value in trial.system_attrs["fixed_params"].items():
+                    if param_value != self._all_grids[grid_id][self._param_names.index(param_name)]:
+                        break
+                else:
+                    study._storage.set_trial_system_attr(trial._trial_id, "search_space", self._search_space)
+                    study._storage.set_trial_system_attr(trial._trial_id, "grid_id", grid_id)
+
+                    return {}
+
+            return {}
+
         target_grids = self._get_unvisited_grid_ids(study)
 
         if len(target_grids) == 0:
@@ -157,6 +171,11 @@ class GridSampler(BaseSampler):
         param_name: str,
         param_distribution: BaseDistribution,
     ) -> Any:
+
+        if "grid_id" not in trial.system_attrs:
+            raise ValueError(
+                "You should specify all parameters in enqueue_trial when using GridSampler."
+            )
 
         if param_name not in self._search_space:
             message = "The parameter name, {}, is not found in the given grid.".format(param_name)
@@ -232,6 +251,30 @@ class GridSampler(BaseSampler):
             unvisited_grids = set(range(self._n_min_trials)) - set(visited_grids)
 
         return list(unvisited_grids)
+
+    def _get_all_unvisited_grid_ids(self, study: Study) -> List[int]:
+
+        # List up unvisited grids based on already finished ones.
+        visited_grids = []
+        running_grids = []
+
+        # We directly query the storage to get trials here instead of `study.get_trials`,
+        # since some pruners such as `HyperbandPruner` use the study transformed
+        # to filter trials. See https://github.com/optuna/optuna/issues/2327 for details.
+        trials = study._storage.get_all_trials(study._study_id, deepcopy=False)
+
+        for t in trials:
+            if "grid_id" in t.system_attrs and self._same_search_space(
+                t.system_attrs["search_space"]
+            ):
+                if t.state.is_finished():
+                    visited_grids.append(t.system_attrs["grid_id"])
+                elif t.state == TrialState.RUNNING:
+                    running_grids.append(t.system_attrs["grid_id"])
+
+        unvisited_grids = set(range(self._n_min_trials)) - set(visited_grids) - set(running_grids)
+
+        return list(unvisited_grids) + list(running_grids)
 
     def _same_search_space(self, search_space: Mapping[str, Sequence[GridValueType]]) -> bool:
 
