@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 """An implementation of `An Efficient Approach for Assessing Hyperparameter Importance`.
 
 See http://proceedings.mlr.press/v32/hutter14.pdf and https://automl.github.io/fanova/cite.html

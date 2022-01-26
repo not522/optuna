@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from concurrent.futures import FIRST_COMPLETED
 from concurrent.futures import Future
 from concurrent.futures import ThreadPoolExecutor

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from optuna.samplers._base import BaseSampler
 from optuna.samplers._cmaes import CmaEsSampler
 from optuna.samplers._grid import GridSampler

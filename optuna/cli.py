@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 """Optuna CLI module.
 
 This module is implemented using cliff. It follows

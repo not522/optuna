@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from logging import CRITICAL  # NOQA
 from logging import DEBUG  # NOQA

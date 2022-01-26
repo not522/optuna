@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import tempfile
 from types import TracebackType
 from typing import Any

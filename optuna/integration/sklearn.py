@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from logging import DEBUG
 from logging import INFO
 from logging import WARNING

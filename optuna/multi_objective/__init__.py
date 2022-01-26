@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from optuna._imports import _LazyImport
 from optuna.multi_objective import samplers  # NOQA
 from optuna.multi_objective import study  # NOQA

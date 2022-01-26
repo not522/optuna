@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 from optuna.integration._lightgbm_tuner.optimize import _imports

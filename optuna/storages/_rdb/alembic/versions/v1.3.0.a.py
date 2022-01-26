@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """empty message
 
 Revision ID: v1.3.0.a

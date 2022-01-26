@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from optuna.visualization import matplotlib
 from optuna.visualization._contour import plot_contour
 from optuna.visualization._edf import plot_edf

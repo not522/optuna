@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from optuna.samplers._search_space.group_decomposed import _GroupDecomposedSearchSpace
 from optuna.samplers._search_space.group_decomposed import _SearchSpaceGroup
 from optuna.samplers._search_space.intersection import intersection_search_space

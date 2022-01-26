@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+
 class OptunaError(Exception):
     """Base class for Optuna specific errors."""
 

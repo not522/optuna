@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from optuna.logging import get_logger
 from optuna.study import Study
 from optuna.trial import TrialState
