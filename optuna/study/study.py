@@ -338,11 +338,11 @@ class Study:
                     will be performed across all processes.
             timeout:
                 Stop study after the given number of second(s). If this argument is set to
-                :obj:`None`, the study is executed without time limitation. If :obj:`n_trials` is
+                :obj:`None`, the study is executed without time limitation. If ``n_trials`` is
                 also set to :obj:`None`, the study continues to create trials until it receives a
                 termination signal such as Ctrl+C or SIGTERM.
             n_jobs:
-                The number of parallel jobs. If this argument is set to :obj:`-1`, the number is
+                The number of parallel jobs. If this argument is set to ``-1``, the number is
                 set to CPU count.
 
                 .. note::

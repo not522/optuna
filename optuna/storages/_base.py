@@ -317,7 +317,7 @@ class BaseStorage(object, metaclass=abc.ABCMeta):
             study_id:
                 ID of the study.
             template_trial:
-                Template :class:`~optuna.trial.FronzenTrial` with default user-attributes,
+                Template :class:`~optuna.trial.FrozenTrial` with default user-attributes,
                 system-attributes, intermediate-values, and a state.
 
         Returns:

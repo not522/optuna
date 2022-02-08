@@ -34,7 +34,7 @@ study.set_user_attr("dataset", "MNIST")
 study.user_attrs  # {'contributors': ['Akiba', 'Sano'], 'dataset': 'MNIST'}
 
 ###################################################################################################
-# :class:`~optuna.struct.StudySummary` object, which can be retrieved by
+# :class:`~optuna.study.StudySummary` object, which can be retrieved by
 # :func:`~optuna.study.get_all_study_summaries`, also contains user-defined attributes.
 
 
