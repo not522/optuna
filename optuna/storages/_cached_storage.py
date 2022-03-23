@@ -274,6 +274,36 @@ class _CachedStorage(BaseStorage):
                 cached_trial.values = values
         self._backend.set_trial_values(trial_id, values=values)
 
+    def pop_waiting_trial(self, trial_id: int) -> bool:
+
+        ret = self._backend.pop_waiting_trial(trial_id)
+        if ret:
+            # Cache when the local thread pop WAITING trial and start evaluation.
+            with self._lock:
+                study_id, _ = self._trial_id_to_study_id_and_number[trial_id]
+                self._add_trials_to_cache(study_id, [self._backend.get_trial(trial_id)])
+                self._studies[study_id].owned_or_finished_trial_ids.add(trial_id)
+        return ret
+
+    def finalize_trial(
+        self, trial_id: int, state: TrialState, values: Optional[Sequence[float]]
+    ) -> None:
+
+        with self._lock:
+            cached_trial = self._get_cached_trial(trial_id)
+            if cached_trial is not None:
+                self._check_trial_is_updatable(cached_trial)
+                self._backend.finalize_trial(trial_id, state, values)
+
+                cached_trial.values = values
+                cached_trial.state = state
+                backend_trial = self._backend.get_trial(trial_id)
+                cached_trial.datetime_complete = backend_trial.datetime_complete
+
+                return
+
+        self._backend.finalize_trial(trial_id, state, values)
+
     def set_trial_intermediate_value(
         self, trial_id: int, step: int, intermediate_value: float
     ) -> None:

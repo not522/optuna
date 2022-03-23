@@ -555,6 +555,37 @@ class RedisStorage(BaseStorage):
         trial.values = values
         self._redis.set(self._key_trial(trial_id), pickle.dumps(trial))
 
+    def pop_waiting_trial(self, trial_id: int) -> bool:
+
+        trial = self.get_trial(trial_id)
+
+        if trial.state != TrialState.WAITING:
+            return False
+
+        trial.state = TrialState.RUNNING
+        trial.datetime_start = datetime.now()
+        self._redis.set(self._key_trial(trial_id), pickle.dumps(trial))
+
+        return True
+
+    def finalize_trial(
+        self, trial_id: int, state: TrialState, values: Optional[Sequence[float]]
+    ) -> None:
+
+        trial = self.get_trial(trial_id)
+        self.check_trial_is_updatable(trial_id, trial.state)
+
+        trial.values = values
+        trial.state = state
+        trial.datetime_complete = datetime.now()
+        self._redis.set(self._key_trial(trial_id), pickle.dumps(trial))
+        self._update_cache(trial_id)
+
+        # To ensure that there are no failed trials with heartbeats in the DB
+        # under any circumstances
+        study_id = self.get_study_id_from_trial_id(trial_id)
+        self._redis.hdel(self._key_study_heartbeats(study_id), str(trial_id))
+
     def _update_cache(self, trial_id: int) -> None:
 
         trial = self.get_trial(trial_id)

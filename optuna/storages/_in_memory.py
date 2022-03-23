@@ -339,6 +339,40 @@ class InMemoryStorage(BaseStorage):
             trial.values = values
             self._set_trial(trial_id, trial)
 
+    def pop_waiting_trial(self, trial_id: int) -> bool:
+
+        with self._lock:
+            trial = self._get_trial(trial_id)
+
+            if trial.state != TrialState.WAITING:
+                return False
+
+            trial = copy.copy(trial)
+
+            trial.state = TrialState.RUNNING
+            trial.datetime_start = datetime.now()
+            self._set_trial(trial_id, trial)
+
+            return True
+
+    def finalize_trial(
+        self, trial_id: int, state: TrialState, values: Optional[Sequence[float]]
+    ) -> None:
+
+        with self._lock:
+            trial = self._get_trial(trial_id)
+
+            self.check_trial_is_updatable(trial_id, trial.state)
+
+            trial = copy.copy(trial)
+
+            trial.values = values
+            trial.state = state
+            trial.datetime_complete = datetime.now()
+            self._set_trial(trial_id, trial)
+            study_id = self._trial_id_to_study_id_and_number[trial_id][0]
+            self._update_cache(trial_id, study_id)
+
     def _update_cache(self, trial_id: int, study_id: int) -> None:
 
         trial = self._get_trial(trial_id)

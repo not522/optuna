@@ -776,6 +776,35 @@ class RDBStorage(BaseStorage):
             for objective, v in enumerate(values):
                 self._set_trial_value_without_commit(session, trial_id, objective, v)
 
+    def pop_waiting_trial(self, trial_id: int) -> bool:
+
+        try:
+            with _create_scoped_session(self.scoped_session) as session:
+                trial = models.TrialModel.find_or_raise_by_id(trial_id, session, for_update=True)
+
+                if trial.state != TrialState.WAITING:
+                    return False
+
+                trial.state = TrialState.RUNNING
+                trial.datetime_start = datetime.now()
+        except IntegrityError:
+            return False
+        return True
+
+    def finalize_trial(
+        self, trial_id: int, state: TrialState, values: Optional[Sequence[float]]
+    ) -> None:
+
+        with _create_scoped_session(self.scoped_session) as session:
+            trial = models.TrialModel.find_or_raise_by_id(trial_id, session, for_update=True)
+            self.check_trial_is_updatable(trial_id, trial.state)
+
+            if values is not None:
+                for objective, v in enumerate(values):
+                    self._set_trial_value_without_commit(session, trial_id, objective, v)
+            trial.state = state
+            trial.datetime_complete = datetime.now()
+
     def _set_trial_value_without_commit(
         self, session: orm.Session, trial_id: int, objective: int, value: float
     ) -> None:

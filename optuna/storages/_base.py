@@ -465,6 +465,16 @@ class BaseStorage(object, metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def pop_waiting_trial(self, trial_id: int) -> bool:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def finalize_trial(
+        self, trial_id: int, state: TrialState, values: Optional[Sequence[float]]
+    ) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def set_trial_intermediate_value(
         self, trial_id: int, step: int, intermediate_value: float
     ) -> None:
