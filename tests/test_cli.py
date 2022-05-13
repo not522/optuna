@@ -10,12 +10,11 @@ from typing import Optional
 from typing import Tuple
 
 import numpy as np
-from pandas import Timedelta
-from pandas import Timestamp
 import pytest
 import yaml
 
 import optuna
+from optuna._imports import try_import
 import optuna.cli
 from optuna.exceptions import CLIUsageError
 from optuna.storages import RDBStorage
@@ -24,6 +23,11 @@ from optuna.study import StudyDirection
 from optuna.testing.storage import StorageSupplier
 from optuna.trial import Trial
 from optuna.trial import TrialState
+
+
+with try_import():
+    from pandas import Timedelta
+    from pandas import Timestamp
 
 
 # An example of objective functions
@@ -396,6 +400,7 @@ def test_studies_command_flatten(output_format: Optional[str]) -> None:
         assert studies[1]["direction_1"] == "MAXIMIZE"
 
 
+@pytest.mark.optional
 @pytest.mark.skip_coverage
 @pytest.mark.parametrize("objective", (objective_func, objective_func_branched_search_space))
 @pytest.mark.parametrize("output_format", (None, "table", "json", "yaml"))
@@ -477,6 +482,7 @@ def test_trials_command(objective: Callable[[Trial], float], output_format: Opti
                     assert value == str(expected_value)
 
 
+@pytest.mark.optional
 @pytest.mark.skip_coverage
 @pytest.mark.parametrize("objective", (objective_func, objective_func_branched_search_space))
 @pytest.mark.parametrize("output_format", (None, "table", "json", "yaml"))
@@ -556,6 +562,7 @@ def test_trials_command_flatten(
                     assert value == str(expected_value)
 
 
+@pytest.mark.optional
 @pytest.mark.skip_coverage
 @pytest.mark.parametrize("objective", (objective_func, objective_func_branched_search_space))
 @pytest.mark.parametrize("output_format", (None, "table", "json", "yaml"))
@@ -640,6 +647,7 @@ def test_best_trial_command(
                 assert value == str(expected_value)
 
 
+@pytest.mark.optional
 @pytest.mark.skip_coverage
 @pytest.mark.parametrize("objective", (objective_func, objective_func_branched_search_space))
 @pytest.mark.parametrize("output_format", (None, "table", "json", "yaml"))
@@ -719,6 +727,7 @@ def test_best_trial_command_flatten(
                 assert value == str(expected_value)
 
 
+@pytest.mark.optional
 @pytest.mark.skip_coverage
 @pytest.mark.parametrize("output_format", (None, "table", "json", "yaml"))
 def test_best_trials_command(output_format: Optional[str]) -> None:
@@ -804,6 +813,7 @@ def test_best_trials_command(output_format: Optional[str]) -> None:
                     assert value == str(expected_value)
 
 
+@pytest.mark.optional
 @pytest.mark.skip_coverage
 @pytest.mark.parametrize("output_format", (None, "table", "json", "yaml"))
 def test_best_trials_command_flatten(output_format: Optional[str]) -> None:

@@ -37,10 +37,10 @@ parametrize_sampler = pytest.mark.parametrize(
         lambda: optuna.samplers.TPESampler(n_startup_trials=0),
         lambda: optuna.samplers.TPESampler(n_startup_trials=0, multivariate=True),
         lambda: optuna.samplers.CmaEsSampler(n_startup_trials=0),
-        lambda: optuna.integration.SkoptSampler(
-            skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
-        ),
-        lambda: optuna.integration.PyCmaSampler(n_startup_trials=0),
+        # lambda: optuna.integration.SkoptSampler(
+        #     skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
+        # ),
+        # lambda: optuna.integration.PyCmaSampler(n_startup_trials=0),
         optuna.samplers.NSGAIISampler,
     ]
     # TODO(kstoneriv3): Update this after the support for Python 3.6 is stopped.
@@ -48,15 +48,15 @@ parametrize_sampler = pytest.mark.parametrize(
         []
         if sys.version_info < (3, 7, 0)
         else [
-            lambda: optuna.samplers.QMCSampler(),
+            # lambda: optuna.samplers.QMCSampler(),
         ]
     )
     # TODO(nzw0301): Remove version constraints if BoTorch supports Python 3.10
     # or Optuna does not support Python 3.6.
     + (
         []
-        if sys.version_info >= (3, 10, 0) or sys.version_info < (3, 7, 0)
-        else [lambda: optuna.integration.BoTorchSampler(n_startup_trials=0)]
+        # if sys.version_info >= (3, 10, 0) or sys.version_info < (3, 7, 0)
+        # else [lambda: optuna.integration.BoTorchSampler(n_startup_trials=0)]
     ),
 )
 parametrize_relative_sampler = pytest.mark.parametrize(
@@ -64,10 +64,10 @@ parametrize_relative_sampler = pytest.mark.parametrize(
     [
         lambda: optuna.samplers.TPESampler(n_startup_trials=0, multivariate=True),
         lambda: optuna.samplers.CmaEsSampler(n_startup_trials=0),
-        lambda: optuna.integration.SkoptSampler(
-            skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
-        ),
-        lambda: optuna.integration.PyCmaSampler(n_startup_trials=0),
+        # lambda: optuna.integration.SkoptSampler(
+        #     skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
+        # ),
+        # lambda: optuna.integration.PyCmaSampler(n_startup_trials=0),
     ],
 )
 parametrize_multi_objective_sampler = pytest.mark.parametrize(
@@ -80,8 +80,8 @@ parametrize_multi_objective_sampler = pytest.mark.parametrize(
     # or Optuna does not support Python 3.6.
     + (
         []
-        if sys.version_info >= (3, 10, 0) or sys.version_info < (3, 7, 0)
-        else [lambda: optuna.integration.BoTorchSampler(n_startup_trials=0)]
+        # if sys.version_info >= (3, 10, 0) or sys.version_info < (3, 7, 0)
+        # else [lambda: optuna.integration.BoTorchSampler(n_startup_trials=0)]
     ),
 )
 
@@ -104,10 +104,10 @@ def parametrize_suggest_method(name: str) -> MarkDecorator:
     "sampler_class",
     [
         lambda: optuna.samplers.CmaEsSampler(n_startup_trials=0),
-        lambda: optuna.integration.SkoptSampler(
-            skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
-        ),
-        lambda: optuna.integration.PyCmaSampler(n_startup_trials=0),
+        # lambda: optuna.integration.SkoptSampler(
+        #     skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
+        # ),
+        # lambda: optuna.integration.PyCmaSampler(n_startup_trials=0),
     ],
 )
 def test_raise_error_for_samplers_during_multi_objectives(
