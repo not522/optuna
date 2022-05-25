@@ -82,10 +82,6 @@ def _norm_logcdf(a):
     return log_LHS + math.log(right_hand_side)
 
 
-def _norm_sf(x):
-    return _ndtr(-x)
-
-
 def _norm_logsf(x):
     return _norm_logcdf(-x)
 
@@ -93,11 +89,7 @@ def _norm_logsf(x):
 def _truncnorm_get_delta_scalar(a, b):
     if (a > TRUNCNORM_TAIL_X) or (b < -TRUNCNORM_TAIL_X):
         return 0
-    if a > 0:
-        delta = _norm_sf(a) - _norm_sf(b)
-    else:
-        delta = _ndtr(b) - _ndtr(a)
-    delta = max(delta, 0)
+    delta = max(_ndtr(b) - _ndtr(a), 0)
     return delta
 
 
@@ -117,59 +109,27 @@ def bisect(f, a, b, c):
 
 
 def _truncnorm_ppf_scalar(q, a, b):
-    shp = np.shape(q)
-    q = np.atleast_1d(q)
-    out = np.zeros(np.shape(q))
-    condle0, condge1 = (q <= 0), (q >= 1)
-    if np.any(condle0):
-        out[condle0] = a
-    if np.any(condge1):
-        out[condge1] = b
     delta = _truncnorm_get_delta_scalar(a, b)
-    cond_inner = ~condle0 & ~condge1
-    if np.any(cond_inner):
-        qinner = q[cond_inner]
-        if delta > 0:
-            if a > 0:
-                sa, sb = _norm_sf(a), _norm_sf(b)
-                np.place(out, cond_inner, bisect(_norm_sf, a, b, qinner * sb + sa * (1.0 - qinner)))
-            else:
-                na, nb = _ndtr(a), _ndtr(b)
-                np.place(out, cond_inner, bisect(_ndtr, a, b, qinner * nb + na * (1.0 - qinner)))
+    print(a, b, delta)
+    if delta > 0:
+        na, nb = _ndtr(a), _ndtr(b)
+        return bisect(_ndtr, a, b, q * nb + na * (1 - q))
+    else:
+        if b < 0:
+            sign = 1
         else:
-            if b < 0:
-                # Solve
-                # norm_logcdf(x)
-                #      = norm_logcdf(a) + log1p(q * (expm1(norm_logcdf(b)
-                #                                    - norm_logcdf(a)))
-                #      = nla + log1p(q * expm1(nlb - nla))
-                #      = nlb + log(q) + log1p((1-q) * exp(nla - nlb)/q)
-                nla, nlb = _norm_logcdf(a), _norm_logcdf(b)
-                values = nlb + np.log(q[cond_inner])
-                C = np.exp(nla - nlb)
-                if C:
-                    one_minus_q = (1 - q)[cond_inner]
-                    values += np.log1p(one_minus_q * C / q[cond_inner])
-                x = [bisect(_norm_logcdf, a, b, c) for c in values]
-                np.place(out, cond_inner, x)
-            else:
-                # Solve
-                # norm_logsf(x)
-                #      = norm_logsf(b) + log1p((1-q) * (expm1(norm_logsf(a)
-                #                                       - norm_logsf(b)))
-                #      = slb + log1p((1-q)[cond_inner] * expm1(sla - slb))
-                #      = sla + log(1-q) + log1p(q * np.exp(slb - sla)/(1-q))
-                sla, slb = _norm_logsf(a), _norm_logsf(b)
-                one_minus_q = (1 - q)[cond_inner]
-                values = sla + np.log(one_minus_q)
-                C = np.exp(slb - sla)
-                if C:
-                    values += np.log1p(q[cond_inner] * C / one_minus_q)
-                x = [bisect(_norm_logsf, a, b, c) for c in values]
-                np.place(out, cond_inner, x)
-        out[out < a] = a
-        out[out > b] = b
-    return (out[0] if (shp == ()) else out)
+            sign = -1
+
+        # Solve
+        # norm_logcdf(x)
+        #      = norm_logcdf(a) + log1p(q * (expm1(norm_logcdf(b)
+        #                                    - norm_logcdf(a)))
+        #      = nla + log1p(q * expm1(nlb - nla))
+        #      = nlb + log(q) + log1p((1-q) * exp(nla - nlb)/q)
+        nla, nlb = _norm_logcdf(sign * a), _norm_logcdf(sign * b)
+        values = nlb + np.log(q)
+        values += np.log1p((1 - q) * np.exp(nla - nlb) / q)
+        return sign * bisect(_norm_logcdf, sign * a, sign * b, values[0])
 
 
 def _ppf(q, a, b):
