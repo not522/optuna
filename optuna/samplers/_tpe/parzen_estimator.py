@@ -6,7 +6,6 @@ from typing import Optional
 from typing import Tuple
 
 import numpy as np
-from scipy import optimize
 import scipy.special as special
 
 from optuna import distributions
@@ -40,7 +39,6 @@ class _ParzenEstimatorParameters(
 
 
 TRUNCNORM_TAIL_X = 30
-TRUNCNORM_MAX_BRENT_ITERS = 40
 
 
 def _norm_cdf(a):
@@ -61,20 +59,12 @@ def _norm_logcdf(x):
     return special.log_ndtr(x)
 
 
-def _norm_ppf(q):
-    return special.ndtri(q)
-
-
 def _norm_sf(x):
     return _norm_cdf(-x)
 
 
 def _norm_logsf(x):
     return _norm_logcdf(-x)
-
-
-def _norm_isf(q):
-    return -_norm_ppf(q)
 
 
 def _truncnorm_get_delta_scalar(a, b):
@@ -86,6 +76,21 @@ def _truncnorm_get_delta_scalar(a, b):
         delta = _norm_cdf(b) - _norm_cdf(a)
     delta = max(delta, 0)
     return delta
+
+
+def bisect(f, a, b, c):
+    fa = f(a)
+    fb = f(b)
+    for _ in range(100):
+        m = (a + b) / 2
+        fm = f(m)
+        if (fa < c and fm < c) or (fa > c and fm > c):
+            a = m
+            fa = fm
+        else:
+            b = m
+            fb = fm
+    return m
 
 
 def _truncnorm_ppf_scalar(q, a, b):
@@ -104,12 +109,10 @@ def _truncnorm_ppf_scalar(q, a, b):
         if delta > 0:
             if a > 0:
                 sa, sb = _norm_sf(a), _norm_sf(b)
-                np.place(out, cond_inner,
-                         _norm_isf(qinner * sb + sa * (1.0 - qinner)))
+                np.place(out, cond_inner, bisect(_norm_sf, a, b, qinner * sb + sa * (1.0 - qinner)))
             else:
                 na, nb = _norm_cdf(a), _norm_cdf(b)
-                np.place(out, cond_inner,
-                         _norm_ppf(qinner * nb + na * (1.0 - qinner)))
+                np.place(out, cond_inner, bisect(_norm_cdf, a, b, qinner * nb + na * (1.0 - qinner)))
         else:
             if b < 0:
                 # Solve
@@ -118,18 +121,13 @@ def _truncnorm_ppf_scalar(q, a, b):
                 #                                    - norm_logcdf(a)))
                 #      = nla + log1p(q * expm1(nlb - nla))
                 #      = nlb + log(q) + log1p((1-q) * exp(nla - nlb)/q)
-                def _f_cdf(x, c):
-                    return _norm_logcdf(x) - c
-
                 nla, nlb = _norm_logcdf(a), _norm_logcdf(b)
                 values = nlb + np.log(q[cond_inner])
                 C = np.exp(nla - nlb)
                 if C:
                     one_minus_q = (1 - q)[cond_inner]
                     values += np.log1p(one_minus_q * C / q[cond_inner])
-                x = [optimize._zeros_py.brentq(_f_cdf, a, b, args=(c,),
-                                               maxiter=TRUNCNORM_MAX_BRENT_ITERS)
-                     for c in values]
+                x = [bisect(_norm_logcdf, a, b, c) for c in values]
                 np.place(out, cond_inner, x)
             else:
                 # Solve
@@ -138,18 +136,13 @@ def _truncnorm_ppf_scalar(q, a, b):
                 #                                       - norm_logsf(b)))
                 #      = slb + log1p((1-q)[cond_inner] * expm1(sla - slb))
                 #      = sla + log(1-q) + log1p(q * np.exp(slb - sla)/(1-q))
-                def _f_sf(x, c):
-                    return _norm_logsf(x) - c
-
                 sla, slb = _norm_logsf(a), _norm_logsf(b)
                 one_minus_q = (1 - q)[cond_inner]
                 values = sla + np.log(one_minus_q)
                 C = np.exp(slb - sla)
                 if C:
                     values += np.log1p(q[cond_inner] * C / one_minus_q)
-                x = [optimize._zeros_py.brentq(_f_sf, a, b, args=(c,),
-                                               maxiter=TRUNCNORM_MAX_BRENT_ITERS)
-                     for c in values]
+                x = [bisect(_norm_logsf, a, b, c) for c in values]
                 np.place(out, cond_inner, x)
         out[out < a] = a
         out[out > b] = b
