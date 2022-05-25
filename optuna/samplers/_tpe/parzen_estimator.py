@@ -1,4 +1,5 @@
 import math
+import sys
 from typing import Callable
 from typing import Dict
 from typing import NamedTuple
@@ -41,7 +42,7 @@ class _ParzenEstimatorParameters(
 TRUNCNORM_TAIL_X = 30
 
 
-def _norm_cdf(a):
+def _ndtr(a):
     x = a / 2 ** 0.5
     z = abs(x)
 
@@ -55,12 +56,34 @@ def _norm_cdf(a):
     return y
 
 
-def _norm_logcdf(x):
-    return special.log_ndtr(x)
+def _norm_logcdf(a):
+    if a > 6:
+        return -_ndtr(-a)
+    if a > -20:
+        return math.log(_ndtr(a))
+
+    log_LHS = -0.5 * a ** 2 - math.log(-a) - 0.5 * math.log(2 * math.pi)
+    last_total = 0
+    right_hand_side = 1
+    numerator = 1
+    denom_factor = 1
+    denom_cons = 1 / a ** 2
+    sign = 1
+    i = 0
+
+    while abs(last_total - right_hand_side) > sys.float_info.epsilon:
+        i += 1
+        last_total = right_hand_side
+        sign = -sign
+        denom_factor *= denom_cons
+        numerator *= 2 * i - 1
+        right_hand_side += sign * numerator * denom_factor
+
+    return log_LHS + math.log(right_hand_side)
 
 
 def _norm_sf(x):
-    return _norm_cdf(-x)
+    return _ndtr(-x)
 
 
 def _norm_logsf(x):
@@ -73,7 +96,7 @@ def _truncnorm_get_delta_scalar(a, b):
     if a > 0:
         delta = _norm_sf(a) - _norm_sf(b)
     else:
-        delta = _norm_cdf(b) - _norm_cdf(a)
+        delta = _ndtr(b) - _ndtr(a)
     delta = max(delta, 0)
     return delta
 
@@ -111,8 +134,8 @@ def _truncnorm_ppf_scalar(q, a, b):
                 sa, sb = _norm_sf(a), _norm_sf(b)
                 np.place(out, cond_inner, bisect(_norm_sf, a, b, qinner * sb + sa * (1.0 - qinner)))
             else:
-                na, nb = _norm_cdf(a), _norm_cdf(b)
-                np.place(out, cond_inner, bisect(_norm_cdf, a, b, qinner * nb + na * (1.0 - qinner)))
+                na, nb = _ndtr(a), _ndtr(b)
+                np.place(out, cond_inner, bisect(_ndtr, a, b, qinner * nb + na * (1.0 - qinner)))
         else:
             if b < 0:
                 # Solve
