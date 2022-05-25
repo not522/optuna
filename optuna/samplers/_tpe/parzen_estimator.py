@@ -6,6 +6,7 @@ from typing import Optional
 from typing import Tuple
 
 import numpy as np
+from scipy import optimize
 import scipy.special as special
 
 from optuna import distributions
@@ -39,10 +40,21 @@ class _ParzenEstimatorParameters(
 
 
 TRUNCNORM_TAIL_X = 30
+TRUNCNORM_MAX_BRENT_ITERS = 40
 
 
-def _norm_cdf(x):
-    return special.ndtr(x)
+def _norm_cdf(a):
+    x = a / 2 ** 0.5
+    z = abs(x)
+
+    if z < 1 / 2 ** 0.5:
+        y = 0.5 + 0.5 * math.erf(x)
+    else:
+        y = 0.5 * math.erfc(z)
+        if x > 0:
+            y = 1.0 - y
+
+    return y
 
 
 def _norm_logcdf(x):
@@ -59,6 +71,10 @@ def _norm_sf(x):
 
 def _norm_logsf(x):
     return _norm_logcdf(-x)
+
+
+def _norm_isf(q):
+    return -_norm_ppf(q)
 
 
 def _truncnorm_get_delta_scalar(a, b):
@@ -94,12 +110,6 @@ def _truncnorm_ppf_scalar(q, a, b):
                 na, nb = _norm_cdf(a), _norm_cdf(b)
                 np.place(out, cond_inner,
                          _norm_ppf(qinner * nb + na * (1.0 - qinner)))
-        elif np.isinf(b):
-            np.place(out, cond_inner,
-                     -_norm_ilogcdf(np.log1p(-qinner) + _norm_logsf(a)))
-        elif np.isinf(a):
-            np.place(out, cond_inner,
-                     _norm_ilogcdf(np.log(q) + _norm_logcdf(b)))
         else:
             if b < 0:
                 # Solve
@@ -118,7 +128,7 @@ def _truncnorm_ppf_scalar(q, a, b):
                     one_minus_q = (1 - q)[cond_inner]
                     values += np.log1p(one_minus_q * C / q[cond_inner])
                 x = [optimize._zeros_py.brentq(_f_cdf, a, b, args=(c,),
-                                           maxiter=TRUNCNORM_MAX_BRENT_ITERS)
+                                               maxiter=TRUNCNORM_MAX_BRENT_ITERS)
                      for c in values]
                 np.place(out, cond_inner, x)
             else:
@@ -132,13 +142,13 @@ def _truncnorm_ppf_scalar(q, a, b):
                     return _norm_logsf(x) - c
 
                 sla, slb = _norm_logsf(a), _norm_logsf(b)
-                one_minus_q = (1-q)[cond_inner]
+                one_minus_q = (1 - q)[cond_inner]
                 values = sla + np.log(one_minus_q)
                 C = np.exp(slb - sla)
                 if C:
                     values += np.log1p(q[cond_inner] * C / one_minus_q)
                 x = [optimize._zeros_py.brentq(_f_sf, a, b, args=(c,),
-                                           maxiter=TRUNCNORM_MAX_BRENT_ITERS)
+                                               maxiter=TRUNCNORM_MAX_BRENT_ITERS)
                      for c in values]
                 np.place(out, cond_inner, x)
         out[out < a] = a
@@ -152,7 +162,7 @@ def _ppf(q, a, b):
     a, b = np.atleast_1d(a), np.atleast_1d(b)
     if a.size == 1 and b.size == 1:
         return _truncnorm_ppf_scalar(q, a.item(), b.item())
-    
+
     out = None
     it = np.nditer([q, a, b, out], [],
                    [['readonly'], ['readonly'], ['readonly'],
