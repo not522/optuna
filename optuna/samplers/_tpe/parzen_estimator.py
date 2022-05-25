@@ -1,5 +1,4 @@
 import math
-import sys
 from typing import Callable
 from typing import Dict
 from typing import NamedTuple
@@ -7,10 +6,10 @@ from typing import Optional
 from typing import Tuple
 
 import numpy as np
-import scipy.special as special
 
 from optuna import distributions
 from optuna.distributions import BaseDistribution
+from optuna.samplers._tpe._truncnorm import truncnorm_ppf
 
 
 EPS = 1e-12
@@ -37,115 +36,6 @@ class _ParzenEstimatorParameters(
     )
 ):
     pass
-
-
-TRUNCNORM_TAIL_X = 30
-
-
-def _ndtr(a):
-    x = a / 2 ** 0.5
-    z = abs(x)
-
-    if z < 1 / 2 ** 0.5:
-        y = 0.5 + 0.5 * math.erf(x)
-    else:
-        y = 0.5 * math.erfc(z)
-        if x > 0:
-            y = 1.0 - y
-
-    return y
-
-
-def _norm_logcdf(a):
-    if a > 6:
-        return -_ndtr(-a)
-    if a > -20:
-        return math.log(_ndtr(a))
-
-    log_LHS = -0.5 * a ** 2 - math.log(-a) - 0.5 * math.log(2 * math.pi)
-    last_total = 0
-    right_hand_side = 1
-    numerator = 1
-    denom_factor = 1
-    denom_cons = 1 / a ** 2
-    sign = 1
-    i = 0
-
-    while abs(last_total - right_hand_side) > sys.float_info.epsilon:
-        i += 1
-        last_total = right_hand_side
-        sign = -sign
-        denom_factor *= denom_cons
-        numerator *= 2 * i - 1
-        right_hand_side += sign * numerator * denom_factor
-
-    return log_LHS + math.log(right_hand_side)
-
-
-def _norm_logsf(x):
-    return _norm_logcdf(-x)
-
-
-def _truncnorm_get_delta_scalar(a, b):
-    if (a > TRUNCNORM_TAIL_X) or (b < -TRUNCNORM_TAIL_X):
-        return 0
-    delta = max(_ndtr(b) - _ndtr(a), 0)
-    return delta
-
-
-def bisect(f, a, b, c):
-    fa = f(a)
-    fb = f(b)
-    for _ in range(100):
-        m = (a + b) / 2
-        fm = f(m)
-        if (fa < c and fm < c) or (fa > c and fm > c):
-            a = m
-            fa = fm
-        else:
-            b = m
-            fb = fm
-    return m
-
-
-def _truncnorm_ppf_scalar(q, a, b):
-    delta = _truncnorm_get_delta_scalar(a, b)
-    print(a, b, delta)
-    if delta > 0:
-        na, nb = _ndtr(a), _ndtr(b)
-        return bisect(_ndtr, a, b, q * nb + na * (1 - q))
-    else:
-        if b < 0:
-            sign = 1
-        else:
-            sign = -1
-
-        # Solve
-        # norm_logcdf(x)
-        #      = norm_logcdf(a) + log1p(q * (expm1(norm_logcdf(b)
-        #                                    - norm_logcdf(a)))
-        #      = nla + log1p(q * expm1(nlb - nla))
-        #      = nlb + log(q) + log1p((1-q) * exp(nla - nlb)/q)
-        nla, nlb = _norm_logcdf(sign * a), _norm_logcdf(sign * b)
-        values = nlb + np.log(q)
-        values += np.log1p((1 - q) * np.exp(nla - nlb) / q)
-        return sign * bisect(_norm_logcdf, sign * a, sign * b, values[0])
-
-
-def _ppf(q, a, b):
-    if np.isscalar(a) and np.isscalar(b):
-        return _truncnorm_ppf_scalar(q, a, b)
-    a, b = np.atleast_1d(a), np.atleast_1d(b)
-    if a.size == 1 and b.size == 1:
-        return _truncnorm_ppf_scalar(q, a.item(), b.item())
-
-    out = None
-    it = np.nditer([q, a, b, out], [],
-                   [['readonly'], ['readonly'], ['readonly'],
-                    ['writeonly', 'allocate']])
-    for (_q, _a, _b, _x) in it:
-        _x[...] = _truncnorm_ppf_scalar(_q, _a, _b)
-    return it.operands[3]
 
 
 class _ParzenEstimator:
@@ -229,23 +119,12 @@ class _ParzenEstimator:
                 trunc_high = (high - mus[active]) / sigmas[active]
                 samples = np.full((), fill_value=high + 1.0, dtype=np.float64)
                 while (samples >= high).any():
-                    a, b = trunc_low, trunc_high
-                    size = (size,)
-                    random_state = rng
-                    out = np.empty(size)
-
-                    it = np.nditer([a, b], flags=['multi_index'], op_flags=[['readonly'], ['readonly']])
-                    while not it.finished:
-                        idx = (it.multi_index[0],)
-                        U = random_state.uniform(low=0, high=1, size=1)
-                        out[idx] = _ppf(U, it[0], it[1])
-                        it.iternext()
-
-                    rvs = out * sigmas[active] + mus[active]
-
+                    out = []
+                    for i in range(size):
+                        u = float(rng.uniform(low=0, high=1, size=1))
+                        out.append(truncnorm_ppf(u, trunc_low[i], trunc_high[i]))
+                    rvs = np.asarray(out) * sigmas[active] + mus[active]
                     samples = np.where(samples < high, samples, rvs)
-                print(samples)
-                print(sum(samples))
             samples_dict[param_name] = samples
         samples_dict = self._transform_from_uniform(samples_dict)
         return samples_dict
