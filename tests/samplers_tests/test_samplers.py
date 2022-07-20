@@ -1,6 +1,5 @@
 from collections import OrderedDict
 import pickle
-import sys
 from typing import Any
 from typing import Callable
 from typing import cast
@@ -8,6 +7,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Sequence
+from typing import Tuple
 from typing import Union
 from unittest.mock import patch
 import warnings
@@ -24,6 +24,7 @@ from optuna.distributions import FloatDistribution
 from optuna.distributions import IntDistribution
 from optuna.samplers import BaseSampler
 from optuna.study import Study
+from optuna.testing.integration import mark_skipif_unavailable_class
 from optuna.testing.objectives import fail_objective
 from optuna.testing.objectives import pruned_objective
 from optuna.testing.samplers import DeterministicRelativeSampler
@@ -35,97 +36,83 @@ from optuna.trial import TrialState
 parametrize_sampler = pytest.mark.parametrize(
     "sampler_class",
     [
-        optuna.samplers.RandomSampler,
-        lambda: optuna.samplers.TPESampler(n_startup_trials=0),
-        lambda: optuna.samplers.TPESampler(n_startup_trials=0, multivariate=True),
-        lambda: optuna.samplers.CmaEsSampler(n_startup_trials=0),
-        lambda: optuna.integration.SkoptSampler(
-            skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
-        ),
-        lambda: optuna.integration.PyCmaSampler(n_startup_trials=0),
-        optuna.samplers.NSGAIISampler,
-    ]
-    # TODO(kstoneriv3): Update this after the support for Python 3.6 is stopped.
-    + (
-        []
-        if sys.version_info < (3, 7, 0)
-        else [
+        mark_skipif_unavailable_class(cast(Callable, sampler_class))
+        for sampler_class in [
+            optuna.samplers.RandomSampler,
+            lambda: optuna.samplers.TPESampler(n_startup_trials=0),
+            lambda: optuna.samplers.TPESampler(n_startup_trials=0, multivariate=True),
+            lambda: optuna.samplers.CmaEsSampler(n_startup_trials=0),
+            lambda: optuna.integration.SkoptSampler(
+                skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
+            ),
+            lambda: optuna.integration.PyCmaSampler(n_startup_trials=0),
+            optuna.samplers.NSGAIISampler,
             lambda: optuna.samplers.QMCSampler(),
+            lambda: optuna.integration.BoTorchSampler(n_startup_trials=0),
         ]
-    )
-    # TODO(nzw0301): Update this after the support for Python 3.6 is stopped.
-    + (
-        []
-        if sys.version_info < (3, 7, 0)
-        else [lambda: optuna.integration.BoTorchSampler(n_startup_trials=0)]
-    ),
+    ],
 )
 parametrize_relative_sampler = pytest.mark.parametrize(
     "relative_sampler_class",
     [
-        lambda: optuna.samplers.TPESampler(n_startup_trials=0, multivariate=True),
-        lambda: optuna.samplers.CmaEsSampler(n_startup_trials=0),
-        lambda: optuna.integration.SkoptSampler(
-            skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
-        ),
-        lambda: optuna.integration.PyCmaSampler(n_startup_trials=0),
+        mark_skipif_unavailable_class(cast(Callable, sampler_class))
+        for sampler_class in [
+            lambda: optuna.samplers.TPESampler(n_startup_trials=0, multivariate=True),
+            lambda: optuna.samplers.CmaEsSampler(n_startup_trials=0),
+            lambda: optuna.integration.SkoptSampler(
+                skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
+            ),
+            lambda: optuna.integration.PyCmaSampler(n_startup_trials=0),
+        ]
     ],
 )
 parametrize_multi_objective_sampler = pytest.mark.parametrize(
     "multi_objective_sampler_class",
     [
-        optuna.samplers.NSGAIISampler,
-        lambda: optuna.samplers.TPESampler(n_startup_trials=0),
-    ]
-    # TODO(nzw0301): Update this after the support for Python 3.6 is stopped.
-    + (
-        []
-        if sys.version_info < (3, 7, 0)
-        else [lambda: optuna.integration.BoTorchSampler(n_startup_trials=0)]
-    ),
+        mark_skipif_unavailable_class(cast(Callable, sampler_class))
+        for sampler_class in [
+            optuna.samplers.NSGAIISampler,
+            lambda: optuna.samplers.TPESampler(n_startup_trials=0),
+            lambda: optuna.integration.BoTorchSampler(n_startup_trials=0),
+        ]
+    ],
 )
 
 
 @pytest.mark.parametrize(
     "sampler_class,expected_has_rng,expected_has_another_sampler",
     [
-        (optuna.samplers.RandomSampler, True, False),
-        (lambda: optuna.samplers.TPESampler(n_startup_trials=0), True, True),
-        (lambda: optuna.samplers.TPESampler(n_startup_trials=0, multivariate=True), True, True),
-        (lambda: optuna.samplers.CmaEsSampler(n_startup_trials=0), True, True),
-        (
-            lambda: optuna.integration.SkoptSampler(
-                skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
+        mark_skipif_unavailable_class(cast(Tuple[Callable, ...], sampler_class))
+        for sampler_class in [
+            (optuna.samplers.RandomSampler, True, False),
+            (lambda: optuna.samplers.TPESampler(n_startup_trials=0), True, True),
+            (
+                lambda: optuna.samplers.TPESampler(n_startup_trials=0, multivariate=True),
+                True,
+                True,
             ),
-            False,
-            True,
-        ),
-        (lambda: optuna.integration.PyCmaSampler(n_startup_trials=0), False, True),
-        (optuna.samplers.NSGAIISampler, True, True),
-        (
-            lambda: optuna.samplers.PartialFixedSampler(
-                fixed_params={"x": 0}, base_sampler=optuna.samplers.RandomSampler()
+            (lambda: optuna.samplers.CmaEsSampler(n_startup_trials=0), True, True),
+            (
+                lambda: optuna.integration.SkoptSampler(
+                    skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
+                ),
+                False,
+                True,
             ),
-            False,
-            True,
-        ),
-        (lambda: optuna.samplers.GridSampler(search_space={"x": [0]}), True, False),
-    ]
-    # TODO(kstoneriv3): Update this after the support for Python 3.6 is stopped.
-    + (
-        []
-        if sys.version_info < (3, 7, 0)
-        else [
+            (lambda: optuna.integration.PyCmaSampler(n_startup_trials=0), False, True),
+            (optuna.samplers.NSGAIISampler, True, True),
+            (
+                lambda: optuna.samplers.PartialFixedSampler(
+                    fixed_params={"x": 0}, base_sampler=optuna.samplers.RandomSampler()
+                ),
+                False,
+                True,
+            ),
+            (lambda: optuna.samplers.GridSampler(search_space={"x": [0]}), True, False),
             (lambda: optuna.samplers.QMCSampler(), False, True),
+            (lambda: optuna.integration.BoTorchSampler(n_startup_trials=0), False, True),
         ]
-    )
-    # TODO(nzw0301): Remove version constraints if BoTorch supports Python 3.10
-    # or Optuna does not support Python 3.6.
-    + (
-        []
-        if sys.version_info >= (3, 10, 0) or sys.version_info < (3, 7, 0)
-        else [(lambda: optuna.integration.BoTorchSampler(n_startup_trials=0), False, True)]
-    ),
+    ],
 )
 def test_sampler_reseed_rng(
     sampler_class: Callable[[], BaseSampler],
@@ -199,11 +186,14 @@ def parametrize_suggest_method(name: str) -> MarkDecorator:
 @pytest.mark.parametrize(
     "sampler_class",
     [
-        lambda: optuna.samplers.CmaEsSampler(n_startup_trials=0),
-        lambda: optuna.integration.SkoptSampler(
-            skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
-        ),
-        lambda: optuna.integration.PyCmaSampler(n_startup_trials=0),
+        mark_skipif_unavailable_class(cast(Callable, sampler_class))
+        for sampler_class in [
+            lambda: optuna.samplers.CmaEsSampler(n_startup_trials=0),
+            lambda: optuna.integration.SkoptSampler(
+                skopt_kwargs={"base_estimator": "dummy", "n_initial_points": 1}
+            ),
+            lambda: optuna.integration.PyCmaSampler(n_startup_trials=0),
+        ]
     ],
 )
 def test_raise_error_for_samplers_during_multi_objectives(

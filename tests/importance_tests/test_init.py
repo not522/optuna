@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from typing import Any
 from typing import Callable
+from typing import cast
 from typing import List
 from typing import Tuple
 
@@ -12,21 +13,29 @@ from optuna.importance import BaseImportanceEvaluator
 from optuna.importance import FanovaImportanceEvaluator
 from optuna.importance import get_param_importances
 from optuna.importance import MeanDecreaseImpurityImportanceEvaluator
-import optuna.integration.shap
+from optuna.integration.shap import ShapleyImportanceEvaluator
 from optuna.samplers import RandomSampler
 from optuna.study import create_study
+from optuna.testing.integration import mark_skipif_unavailable_class
 from optuna.testing.objectives import pruned_objective
 from optuna.testing.storages import STORAGE_MODES
 from optuna.testing.storages import StorageSupplier
 from optuna.trial import Trial
 
 
-evaluators = [MeanDecreaseImpurityImportanceEvaluator, FanovaImportanceEvaluator]
+evaluators = [
+    MeanDecreaseImpurityImportanceEvaluator,
+    FanovaImportanceEvaluator,
+    ShapleyImportanceEvaluator,
+]
 
-if optuna.integration.shap._imports.is_successful():
-    evaluators += [optuna.integration.shap.ShapleyImportanceEvaluator]
-
-parametrize_evaluator = pytest.mark.parametrize("evaluator_init_func", evaluators)
+parametrize_evaluator = pytest.mark.parametrize(
+    "evaluator_init_func",
+    [
+        mark_skipif_unavailable_class(cast(Callable, evaluator_class))
+        for evaluator_class in evaluators
+    ],
+)
 
 
 @parametrize_evaluator
