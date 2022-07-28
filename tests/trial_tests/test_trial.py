@@ -28,6 +28,7 @@ from optuna.testing.storages import StorageSupplier
 from optuna.trial import Trial
 
 
+@pytest.mark.filterwarnings("ignore::FutureWarning")
 @pytest.mark.parametrize("storage_mode", STORAGE_MODES)
 def test_check_distribution_suggest_float(storage_mode: str) -> None:
 
@@ -54,13 +55,16 @@ def test_check_distribution_suggest_float(storage_mode: str) -> None:
             trial.suggest_float("x4", 1e-5, 1e-2, step=1e-5, log=True)
 
         with pytest.raises(ValueError):
-            trial.suggest_int("x1", 10, 20)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                trial.suggest_int("x1", 10, 20)
 
         trial = Trial(study, study._storage.create_new_trial(study._study_id))
         with pytest.raises(ValueError):
             trial.suggest_int("x1", 10, 20)
 
 
+@pytest.mark.filterwarnings("ignore::FutureWarning")
 @pytest.mark.parametrize("storage_mode", STORAGE_MODES)
 def test_check_distribution_suggest_uniform(storage_mode: str) -> None:
 
@@ -78,13 +82,16 @@ def test_check_distribution_suggest_uniform(storage_mode: str) -> None:
         assert len([r for r in record if r.category != FutureWarning]) == 1
 
         with pytest.raises(ValueError):
-            trial.suggest_int("x", 10, 20)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                trial.suggest_int("x", 10, 20)
 
         trial = Trial(study, study._storage.create_new_trial(study._study_id))
         with pytest.raises(ValueError):
             trial.suggest_int("x", 10, 20)
 
 
+@pytest.mark.filterwarnings("ignore::FutureWarning")
 @pytest.mark.parametrize("storage_mode", STORAGE_MODES)
 def test_check_distribution_suggest_loguniform(storage_mode: str) -> None:
 
@@ -102,13 +109,16 @@ def test_check_distribution_suggest_loguniform(storage_mode: str) -> None:
         assert len([r for r in record if r.category != FutureWarning]) == 1
 
         with pytest.raises(ValueError):
-            trial.suggest_int("x", 10, 20)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                trial.suggest_int("x", 10, 20)
 
         trial = Trial(study, study._storage.create_new_trial(study._study_id))
         with pytest.raises(ValueError):
             trial.suggest_int("x", 10, 20)
 
 
+@pytest.mark.filterwarnings("ignore::FutureWarning")
 @pytest.mark.parametrize("storage_mode", STORAGE_MODES)
 def test_check_distribution_suggest_discrete_uniform(storage_mode: str) -> None:
 
@@ -126,7 +136,9 @@ def test_check_distribution_suggest_discrete_uniform(storage_mode: str) -> None:
         assert len([r for r in record if r.category != FutureWarning]) == 1
 
         with pytest.raises(ValueError):
-            trial.suggest_int("x", 10, 20, 2)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                trial.suggest_int("x", 10, 20, 2)
 
         trial = Trial(study, study._storage.create_new_trial(study._study_id))
         with pytest.raises(ValueError):
@@ -151,7 +163,9 @@ def test_check_distribution_suggest_int(storage_mode: str, enable_log: bool) -> 
         assert len([r for r in record if r.category != FutureWarning]) == 1
 
         with pytest.raises(ValueError):
-            trial.suggest_float("x", 10, 20, log=enable_log)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                trial.suggest_float("x", 10, 20, log=enable_log)
 
         trial = Trial(study, study._storage.create_new_trial(study._study_id))
         with pytest.raises(ValueError):
@@ -172,7 +186,9 @@ def test_check_distribution_suggest_categorical(storage_mode: str) -> None:
             trial.suggest_categorical("x", [10, 20])
 
         with pytest.raises(ValueError):
-            trial.suggest_int("x", 10, 20)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                trial.suggest_int("x", 10, 20)
 
         trial = Trial(study, study._storage.create_new_trial(study._study_id))
         with pytest.raises(ValueError):
@@ -248,6 +264,7 @@ def test_suggest_discrete_uniform(storage_mode: str) -> None:
         assert mock_object.call_count == 2
 
 
+@pytest.mark.filterwarnings("ignore::FutureWarning")
 @pytest.mark.parametrize("storage_mode", STORAGE_MODES)
 def test_suggest_low_equals_high(storage_mode: str) -> None:
 

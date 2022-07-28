@@ -62,6 +62,7 @@ def test_suggest_float(trial_type: type) -> None:
         trial.suggest_float("y", 0.0, 1.0)
 
 
+@pytest.mark.filterwarnings("ignore::FutureWarning")
 @pytest.mark.parametrize("trial_type", [FixedTrial, FrozenTrial])
 def test_suggest_uniform(trial_type: type) -> None:
 
@@ -77,6 +78,7 @@ def test_suggest_uniform(trial_type: type) -> None:
         trial.suggest_uniform("y", 0.0, 1.0)
 
 
+@pytest.mark.filterwarnings("ignore::FutureWarning")
 @pytest.mark.parametrize("trial_type", [FixedTrial, FrozenTrial])
 def test_suggest_loguniform(trial_type: type) -> None:
 
@@ -91,6 +93,7 @@ def test_suggest_loguniform(trial_type: type) -> None:
         trial.suggest_loguniform("y", 0.0, 1.0)
 
 
+@pytest.mark.filterwarnings("ignore::FutureWarning")
 @pytest.mark.parametrize("trial_type", [FixedTrial, FrozenTrial])
 def test_suggest_discrete_uniform(trial_type: type) -> None:
 
@@ -117,7 +120,7 @@ def test_suggest_int_log(trial_type: type) -> None:
     assert trial.suggest_int("x", 1, 10, log=True) == 1
 
     with pytest.raises(ValueError):
-        trial.suggest_int("x", 1, 10, step=2, log=True)
+        trial.suggest_int("x", 1, 9, step=2, log=True)
 
     with pytest.raises(ValueError):
         trial.suggest_int("y", 1, 10, log=True)
@@ -168,7 +171,7 @@ def test_suggest_categorical(trial_type: type) -> None:
             lambda trial, *args: trial.suggest_int(*args, log=True),
             IntDistribution(1, 10, log=True),
         ),
-        (lambda trial, *args: trial.suggest_int(*args, step=2), IntDistribution(1, 10, step=2)),
+        (lambda trial, *args: trial.suggest_int(*args, step=2), IntDistribution(1, 9, step=2)),
         (lambda trial, *args: trial.suggest_float(*args), FloatDistribution(1, 10)),
         (
             lambda trial, *args: trial.suggest_float(*args, log=True),
