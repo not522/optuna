@@ -7,6 +7,7 @@ from typing import Mapping
 from typing import Sequence
 from typing import Union
 from typing import ValuesView
+import warnings
 
 import numpy as np
 import pytest
@@ -42,7 +43,9 @@ def test_study_optimize_with_single_search_space() -> None:
         "a": list(range(0, 100, 20)),
     }
     study = optuna.create_study(sampler=samplers.GridSampler(search_space))  # type: ignore
-    study.optimize(objective)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        study.optimize(objective)
 
     def sorted_values(
         d: Mapping[str, Sequence[GridValueType]]

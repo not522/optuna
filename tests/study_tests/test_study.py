@@ -1207,6 +1207,7 @@ def test_ask_fixed_search_space() -> None:
 
 
 # Deprecated distributions are internally converted to corresponding distributions.
+@pytest.mark.filterwarnings("ignore::FutureWarning")
 def test_ask_distribution_conversion() -> None:
     fixed_distributions = {
         "ud": distributions.UniformDistribution(low=0, high=10),
@@ -1455,6 +1456,7 @@ def test_tell_duplicate_tell() -> None:
         study.tell(trial, 1.0, skip_if_finished=False)
 
 
+@pytest.mark.filterwarnings("ignore::UserWarning")
 def test_tell_storage_not_implemented_trial_number() -> None:
     with StorageSupplier("inmemory") as storage:
 
