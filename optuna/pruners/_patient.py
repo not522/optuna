@@ -104,7 +104,9 @@ class PatientPruner(BasePruner):
         )
 
         direction = study.direction
-        if direction == StudyDirection.MINIMIZE:
+        if np.isnan(scores_before_patience).all() or np.isnan(scores_after_patience).all():
+            maybe_prune = False
+        elif direction == StudyDirection.MINIMIZE:
             maybe_prune = np.nanmin(scores_before_patience) + self._min_delta < np.nanmin(
                 scores_after_patience
             )

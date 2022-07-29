@@ -16,6 +16,8 @@ def _get_best_intermediate_result_over_steps(
 ) -> float:
 
     values = np.asarray(list(trial.intermediate_values.values()), dtype=float)
+    if np.isnan(values).all():
+        return np.nan
     if direction == StudyDirection.MAXIMIZE:
         return np.nanmax(values)
     return np.nanmin(values)
@@ -41,6 +43,9 @@ def _get_percentile_intermediate_result_over_trials(
 
     if direction == StudyDirection.MAXIMIZE:
         percentile = 100 - percentile
+
+    if np.isnan(intermediate_values).all():
+        return np.nan
 
     return float(
         np.nanpercentile(

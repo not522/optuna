@@ -131,9 +131,6 @@ def test_get_best_intermediate_result_over_steps(
     trial_id_empty = study._storage.create_new_trial(study._study_id)
     trial_empty = study._storage.get_trial(trial_id_empty)
 
-    with pytest.raises(ValueError):
-        _percentile._get_best_intermediate_result_over_steps(trial_empty, direction)
-
     # Input value has no NaNs but float values.
     trial_id_float = study._storage.create_new_trial(study._study_id)
     trial_float = optuna.trial.Trial(study, trial_id_float)
@@ -171,14 +168,6 @@ def test_get_percentile_intermediate_result_over_trials() -> None:
         trial_ids = [_study._storage.create_new_trial(_study._study_id) for _ in range(trial_num)]
 
         for step, values in enumerate(_intermediate_values):
-            # Study does not have any complete trials.
-            with pytest.raises(ValueError):
-                completed_trials = _study.get_trials(deepcopy=False, states=(TrialState.COMPLETE,))
-                _direction = _study.direction
-                _percentile._get_percentile_intermediate_result_over_trials(
-                    completed_trials, _direction, step, 25, 1
-                )
-
             for i in range(trial_num):
                 trial_id = trial_ids[i]
                 value = values[i]
