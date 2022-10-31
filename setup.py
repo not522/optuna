@@ -127,7 +127,7 @@ def get_extras_require() -> Dict[str, List[str]]:
             "fakeredis ; python_version>='3.7'",
             "kaleido",
             "pytest",
-            "scipy>=1.9.2; python_version>=3.8",
+            "scipy>=1.9.2; python_version>='3.8'",
         ],
     }
 
