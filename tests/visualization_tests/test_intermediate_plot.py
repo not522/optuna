@@ -11,9 +11,18 @@ import optuna.visualization._intermediate_values
 from optuna.visualization._intermediate_values import _get_intermediate_plot_info
 from optuna.visualization._intermediate_values import _IntermediatePlotInfo
 from optuna.visualization._intermediate_values import _TrialInfo
-from optuna.visualization._plotly_imports import go
+from optuna.visualization._plotly_imports import _imports as _plotly_imports
 import optuna.visualization.matplotlib._intermediate_values
-from optuna.visualization.matplotlib._matplotlib_imports import plt
+from optuna.visualization.matplotlib._matplotlib_imports import _imports as _matplotlib_imports
+
+
+if _plotly_imports.is_successful():
+    from optuna.visualization._plotly_imports import go
+
+if _matplotlib_imports.is_successful():
+    from optuna.visualization.matplotlib._matplotlib_imports import plt
+
+pytestmark = pytest.mark.optional
 
 
 def test_intermediate_plot_info() -> None:

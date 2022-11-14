@@ -26,6 +26,8 @@ from optuna.testing.storages import StorageSupplier
 from optuna.trial import Trial
 
 
+pytestmark = pytest.mark.optional
+
 evaluators: List[Union[Type[BaseImportanceEvaluator], ParameterSet]] = [
     MeanDecreaseImpurityImportanceEvaluator,
     FanovaImportanceEvaluator,

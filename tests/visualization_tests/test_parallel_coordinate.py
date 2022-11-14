@@ -22,10 +22,18 @@ from optuna.visualization import plot_parallel_coordinate as plotly_plot_paralle
 from optuna.visualization._parallel_coordinate import _DimensionInfo
 from optuna.visualization._parallel_coordinate import _get_parallel_coordinate_info
 from optuna.visualization._parallel_coordinate import _ParallelCoordinateInfo
-from optuna.visualization._plotly_imports import go
-from optuna.visualization._utils import COLOR_SCALE
-from optuna.visualization.matplotlib._matplotlib_imports import plt
+from optuna.visualization._plotly_imports import _imports as _plotly_imports
+from optuna.visualization.matplotlib._matplotlib_imports import _imports as _matplotlib_imports
 
+
+if _plotly_imports.is_successful():
+    from optuna.visualization._plotly_imports import go
+    from optuna.visualization._utils import COLOR_SCALE
+
+if _matplotlib_imports.is_successful():
+    from optuna.visualization.matplotlib._matplotlib_imports import plt
+
+pytestmark = pytest.mark.optional
 
 parametrize_plot_parallel_coordinate = pytest.mark.parametrize(
     "plot_parallel_coordinate",

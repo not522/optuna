@@ -21,11 +21,19 @@ from optuna.trial import Trial
 from optuna.visualization import plot_param_importances as plotly_plot_param_importances
 from optuna.visualization._param_importances import _get_importances_info
 from optuna.visualization._param_importances import _ImportancesInfo
-from optuna.visualization._plotly_imports import go
+from optuna.visualization._plotly_imports import _imports as _plotly_imports
 from optuna.visualization.matplotlib import plot_param_importances as plt_plot_param_importances
-from optuna.visualization.matplotlib._matplotlib_imports import Axes
-from optuna.visualization.matplotlib._matplotlib_imports import plt
+from optuna.visualization.matplotlib._matplotlib_imports import _imports as _matplotlib_imports
 
+
+if _plotly_imports.is_successful():
+    from optuna.visualization._plotly_imports import go
+
+if _matplotlib_imports.is_successful():
+    from optuna.visualization.matplotlib._matplotlib_imports import Axes
+    from optuna.visualization.matplotlib._matplotlib_imports import plt
+
+pytestmark = pytest.mark.optional
 
 parametrize_plot_param_importances = pytest.mark.parametrize(
     "plot_param_importances", [plotly_plot_param_importances, plt_plot_param_importances]
@@ -135,18 +143,20 @@ def test_switch_label_when_param_insignificant() -> None:
 
 @pytest.mark.parametrize("inf_value", [float("inf"), -float("inf")])
 @pytest.mark.parametrize(
-    "evaluator",
-    [MeanDecreaseImpurityImportanceEvaluator(seed=10), FanovaImportanceEvaluator(seed=10)],
+    "evaluator_class",
+    [MeanDecreaseImpurityImportanceEvaluator, FanovaImportanceEvaluator],
 )
 @pytest.mark.parametrize("n_trials", [0, 10])
 def test_get_info_importances_nonfinite_removed(
-    inf_value: float, evaluator: BaseImportanceEvaluator, n_trials: int
+    inf_value: float, evaluator_class: BaseImportanceEvaluator, n_trials: int  # TODO
 ) -> None:
     def _objective(trial: Trial) -> float:
         x1 = trial.suggest_float("x1", 0.1, 3)
         x2 = trial.suggest_float("x2", 0.1, 3, log=True)
         x3 = trial.suggest_float("x3", 2, 4, log=True)
         return x1 + x2 * x3
+
+    evaluator = evaluator_class(seed=10)
 
     seed = 13
     target_name = "Objective Value"
@@ -185,18 +195,20 @@ def test_get_info_importances_nonfinite_removed(
 @pytest.mark.parametrize("target_idx", [0, 1])
 @pytest.mark.parametrize("inf_value", [float("inf"), -float("inf")])
 @pytest.mark.parametrize(
-    "evaluator",
-    [MeanDecreaseImpurityImportanceEvaluator(seed=10), FanovaImportanceEvaluator(seed=10)],
+    "evaluator_class",
+    [MeanDecreaseImpurityImportanceEvaluator, FanovaImportanceEvaluator],
 )
 @pytest.mark.parametrize("n_trial", [0, 10])
 def test_multi_objective_trial_with_infinite_value_ignored(
-    target_idx: int, inf_value: float, evaluator: BaseImportanceEvaluator, n_trial: int
+    target_idx: int, inf_value: float, evaluator_class: BaseImportanceEvaluator, n_trial: int  # TODO
 ) -> None:
     def _multi_objective_function(trial: Trial) -> Tuple[float, float]:
         x1 = trial.suggest_float("x1", 0.1, 3)
         x2 = trial.suggest_float("x2", 0.1, 3, log=True)
         x3 = trial.suggest_float("x3", 2, 4, log=True)
         return x1, x2 * x3
+
+    evaluator = evaluator_class(seed=10)
 
     seed = 13
     target_name = "Target Name"

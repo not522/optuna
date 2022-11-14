@@ -10,7 +10,7 @@ import optuna
 from optuna.multi_objective.visualization import plot_pareto_front
 
 
-pytestmark = pytest.mark.filterwarnings("ignore::FutureWarning")
+pytestmark = [pytest.mark.optional, pytest.mark.filterwarnings("ignore::FutureWarning")]
 
 
 @pytest.mark.parametrize("include_dominated_trials", [False, True])

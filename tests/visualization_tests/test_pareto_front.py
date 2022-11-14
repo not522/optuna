@@ -23,10 +23,19 @@ import optuna.visualization._pareto_front
 from optuna.visualization._pareto_front import _get_pareto_front_info
 from optuna.visualization._pareto_front import _make_hovertext
 from optuna.visualization._pareto_front import _ParetoFrontInfo
-from optuna.visualization._plotly_imports import go
-from optuna.visualization._utils import COLOR_SCALE
-from optuna.visualization.matplotlib._matplotlib_imports import plt
+from optuna.visualization._plotly_imports import _imports as _plotly_imports
+from optuna.visualization.matplotlib._matplotlib_imports import _imports as _matplotlib_imports
 import optuna.visualization.matplotlib._pareto_front
+
+
+if _plotly_imports.is_successful():
+    from optuna.visualization._plotly_imports import go
+    from optuna.visualization._utils import COLOR_SCALE
+
+if _matplotlib_imports.is_successful():
+    from optuna.visualization.matplotlib._matplotlib_imports import plt
+
+pytestmark = pytest.mark.optional
 
 
 def test_get_pareto_front_info_infer_n_targets() -> None:

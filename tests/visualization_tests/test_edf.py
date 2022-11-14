@@ -17,23 +17,24 @@ from optuna.visualization import plot_edf as plotly_plot_edf
 from optuna.visualization._edf import _EDFInfo
 from optuna.visualization._edf import _get_edf_info
 from optuna.visualization._edf import NUM_SAMPLES_X_AXIS
-from optuna.visualization._plotly_imports import _imports as plotly_imports
+from optuna.visualization._plotly_imports import _imports as _plotly_imports
 from optuna.visualization.matplotlib import plot_edf as plt_plot_edf
-from optuna.visualization.matplotlib._matplotlib_imports import _imports as plt_imports
+from optuna.visualization.matplotlib._matplotlib_imports import _imports as _matplotlib_imports
 
 
-if plotly_imports.is_successful():
+if _plotly_imports.is_successful():
     from optuna.visualization._plotly_imports import go
 
-if plt_imports.is_successful():
+if _matplotlib_imports.is_successful():
     from optuna.visualization.matplotlib._matplotlib_imports import Axes
     from optuna.visualization.matplotlib._matplotlib_imports import plt
 
+pytestmark = pytest.mark.optional
 
 parametrized_plot_edf = pytest.mark.parametrize("plot_edf", [plotly_plot_edf, plt_plot_edf])
 
 
-def save_static_image(figure: Union[go.Figure, Axes, np.ndarray]) -> None:
+def save_static_image(figure: Union["go.Figure", "Axes", np.ndarray]) -> None:
     if isinstance(figure, go.Figure):
         figure.write_image(BytesIO())
     else:
