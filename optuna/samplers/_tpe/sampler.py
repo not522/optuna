@@ -277,6 +277,11 @@ class TPESampler(BaseSampler):
         self._constant_liar = constant_liar
         self._constraints_func = constraints_func
 
+        self._below_values = {}
+        self._above_values = {}
+        self._weights_below = {}
+        self._startup_trials = set()
+
         if multivariate:
             warnings.warn(
                 "``multivariate`` option is an experimental feature."
@@ -315,11 +320,52 @@ class TPESampler(BaseSampler):
         self._rng.seed()
         self._random_sampler.reseed_rng()
 
+    def _get_and_split_past_trials(self, study, trial):
+
+        states: Container[TrialState]
+        if self._constant_liar:
+            states = (TrialState.COMPLETE, TrialState.PRUNED, TrialState.RUNNING)
+        else:
+            states = (TrialState.COMPLETE, TrialState.PRUNED)
+        trials = study.get_trials(deepcopy=False, states=states)
+        values, scores, violations = _get_observation_pairs(
+            study,
+            trials,
+            self._constant_liar,
+            self._constraints_func is not None,
+        )
+
+        n = sum(s < float("inf") for s, v in scores)  # Ignore running trials.
+        if n >= self._n_startup_trials:
+            # We divide data into below and above.
+            indices_below, indices_above = _split_observation_pairs(
+                scores, self._gamma(n), violations
+            )
+            self._below_values[trial.number] = {}
+            for k, v in values.items():
+                value = v[indices_below]
+                value = value[~np.isnan(value)]
+                self._below_values[trial.number][k] = value
+            self._above_values[trial.number] = {}
+            for k, v in values.items():
+                value = v[indices_above]
+                value = value[~np.isnan(value)]
+                self._above_values[trial.number][k] = value
+
+            if study._is_multi_objective():
+                self._weights_below[trial.number] = _calculate_weights_below_for_multi_objective(
+                    scores, indices_below, violations
+                )
+        else:
+            self._startup_trials.add(trial.number)
+
     def infer_relative_search_space(
         self, study: Study, trial: FrozenTrial
     ) -> Dict[str, BaseDistribution]:
 
-        if not self._multivariate:
+        self._get_and_split_past_trials(study, trial)
+
+        if trial.number in self._startup_trials or not self._multivariate:
             return {}
 
         search_space: Dict[str, BaseDistribution] = {}
@@ -342,24 +388,23 @@ class TPESampler(BaseSampler):
 
         return search_space
 
-    def _log_independent_sampling(
-        self, n_complete_trials: int, trial: FrozenTrial, param_name: str
-    ) -> None:
+    def _log_independent_sampling(self, trial: FrozenTrial, param_name: str) -> None:
         if self._warn_independent_sampling and self._multivariate:
-            # The first trial samples independently.
-            if n_complete_trials >= max(self._n_startup_trials, 1):
-                _logger.warning(
-                    f"The parameter '{param_name}' in trial#{trial.number} is sampled "
-                    "independently instead of being sampled by multivariate TPE sampler. "
-                    "(optimization performance may be degraded). "
-                    "You can suppress this warning by setting `warn_independent_sampling` "
-                    "to `False` in the constructor of `TPESampler`, "
-                    "if this independent sampling is intended behavior."
-                )
+            _logger.warning(
+                f"The parameter '{param_name}' in trial#{trial.number} is sampled "
+                "independently instead of being sampled by multivariate TPE sampler. "
+                "(optimization performance may be degraded). "
+                "You can suppress this warning by setting `warn_independent_sampling` "
+                "to `False` in the constructor of `TPESampler`, "
+                "if this independent sampling is intended behavior."
+            )
 
     def sample_relative(
         self, study: Study, trial: FrozenTrial, search_space: Dict[str, BaseDistribution]
     ) -> Dict[str, Any]:
+
+        if search_space == {}:
+            return {}
 
         if self._group:
             assert self._search_space_group is not None
@@ -370,44 +415,43 @@ class TPESampler(BaseSampler):
                 for name, distribution in sorted(sub_space.items()):
                     if not distribution.single():
                         search_space[name] = distribution
-                params.update(self._sample_relative(study, trial, search_space))
+                params.update(self._sample(study, trial, search_space))
             return params
         else:
-            return self._sample_relative(study, trial, search_space)
+            return self._sample(study, trial, search_space)
 
-    def _sample_relative(
+    def sample_independent(
+        self,
+        study: Study,
+        trial: FrozenTrial,
+        param_name: str,
+        param_distribution: BaseDistribution,
+    ) -> Any:
+
+        if trial.number in self._startup_trials:
+            return self._random_sampler.sample_independent(
+                study, trial, param_name, param_distribution
+            )
+
+        # Avoid independent warning at the first sampling of `param_name`.
+        if param_name in self._below_values[trial.number].keys():
+            self._log_independent_sampling(trial, param_name)
+
+        return self._sample(study, trial, {param_name: param_distribution})[param_name]
+
+    def _sample(
         self, study: Study, trial: FrozenTrial, search_space: Dict[str, BaseDistribution]
     ) -> Dict[str, Any]:
+        below = {
+            param_name: self._below_values[trial.number][param_name] for param_name in search_space
+        }
+        above = {
+            param_name: self._above_values[trial.number][param_name] for param_name in search_space
+        }
 
-        if search_space == {}:
-            return {}
-
-        param_names = list(search_space.keys())
-        values, scores, violations = _get_observation_pairs(
-            study,
-            param_names,
-            self._constant_liar,
-            self._constraints_func is not None,
-        )
-
-        # If the number of samples is insufficient, we run random trial.
-        n = sum(s < float("inf") for s, v in scores)  # Ignore running trials.
-        if n < self._n_startup_trials:
-            return {}
-
-        # We divide data into below and above.
-        indices_below, indices_above = _split_observation_pairs(scores, self._gamma(n), violations)
-        # `None` items are intentionally converted to `nan` and then filtered out.
-        # For `nan` conversion, the dtype must be float.
-        config_values = {k: np.asarray(v, dtype=float) for k, v in values.items()}
-        below = _build_observation_dict(config_values, indices_below)
-        above = _build_observation_dict(config_values, indices_above)
-
-        # We then sample by maximizing log likelihood ratio.
         if study._is_multi_objective():
-            weights_below = _calculate_weights_below_for_multi_objective(
-                config_values, scores, indices_below, violations
-            )
+            cvals = list(below_values.values())[0]
+            weights_below = self._weights_below[trial.number][~np.isnan(cvals)]
             mpe_below = _ParzenEstimator(
                 below, search_space, self._parzen_estimator_parameters, weights_below
             )
@@ -423,63 +467,6 @@ class TPESampler(BaseSampler):
             ret[param_name] = dist.to_external_repr(ret[param_name])
 
         return ret
-
-    def sample_independent(
-        self,
-        study: Study,
-        trial: FrozenTrial,
-        param_name: str,
-        param_distribution: BaseDistribution,
-    ) -> Any:
-
-        values, scores, violations = _get_observation_pairs(
-            study,
-            [param_name],
-            self._constant_liar,
-            self._constraints_func is not None,
-        )
-
-        n = sum(s < float("inf") for s, v in scores)  # Ignore running trials.
-
-        # Avoid independent warning at the first sampling of `param_name` when `group=True`.
-        if any(param is not None for param in values[param_name]):
-            self._log_independent_sampling(n, trial, param_name)
-
-        if n < self._n_startup_trials:
-            return self._random_sampler.sample_independent(
-                study, trial, param_name, param_distribution
-            )
-
-        indices_below, indices_above = _split_observation_pairs(scores, self._gamma(n), violations)
-        # `None` items are intentionally converted to `nan` and then filtered out.
-        # For `nan` conversion, the dtype must be float.
-        config_values = {k: np.asarray(v, dtype=float) for k, v in values.items()}
-        below = _build_observation_dict(config_values, indices_below)
-        above = _build_observation_dict(config_values, indices_above)
-
-        if study._is_multi_objective():
-            weights_below = _calculate_weights_below_for_multi_objective(
-                config_values, scores, indices_below, violations
-            )
-            mpe_below = _ParzenEstimator(
-                below,
-                {param_name: param_distribution},
-                self._parzen_estimator_parameters,
-                weights_below,
-            )
-        else:
-            mpe_below = _ParzenEstimator(
-                below, {param_name: param_distribution}, self._parzen_estimator_parameters
-            )
-        mpe_above = _ParzenEstimator(
-            above, {param_name: param_distribution}, self._parzen_estimator_parameters
-        )
-        samples_below = mpe_below.sample(self._rng, self._n_ei_candidates)
-        log_likelihoods_below = mpe_below.log_pdf(samples_below)
-        log_likelihoods_above = mpe_above.log_pdf(samples_below)
-        ret = TPESampler._compare(samples_below, log_likelihoods_below, log_likelihoods_above)
-
-        return param_distribution.to_external_repr(ret[param_name])
 
     @classmethod
     def _compare(
@@ -559,6 +546,15 @@ class TPESampler(BaseSampler):
         assert state in [TrialState.COMPLETE, TrialState.FAIL, TrialState.PRUNED]
         if self._constraints_func is not None:
             _process_constraints_after_trial(self._constraints_func, study, trial, state)
+
+        if trial.number in self._below_values:
+            del self._below_values[trial.number]
+        if trial.number in self._above_values:
+            del self._above_values[trial.number]
+        if trial.number in self._weights_below:
+            del self._weights_below[trial.number]
+        self._startup_trials.discard(trial.number)
+
         self._random_sampler.after_trial(study, trial, state, values)
 
 
@@ -579,11 +575,11 @@ def _calculate_nondomination_rank(loss_vals: np.ndarray) -> np.ndarray:
 
 def _get_observation_pairs(
     study: Study,
-    param_names: List[str],
+    trials,
     constant_liar: bool = False,  # TODO(hvy): Remove default value and fix unit tests.
     constraints_enabled: bool = False,
 ) -> Tuple[
-    Dict[str, List[Optional[float]]],
+    Dict[str, np.ndarray],
     List[Tuple[float, List[float]]],
     Optional[List[float]],
 ]:
@@ -609,6 +605,10 @@ def _get_observation_pairs(
     trial is feasible if and only if its violation score is 0.
     """
 
+    param_names = set()
+    for trial in trials:
+        param_names |= trial.params.keys()
+
     signs = []
     for d in study.directions:
         if d == StudyDirection.MINIMIZE:
@@ -616,16 +616,10 @@ def _get_observation_pairs(
         else:
             signs.append(-1)
 
-    states: Container[TrialState]
-    if constant_liar:
-        states = (TrialState.COMPLETE, TrialState.PRUNED, TrialState.RUNNING)
-    else:
-        states = (TrialState.COMPLETE, TrialState.PRUNED)
-
     scores = []
     values: Dict[str, List[Optional[float]]] = {param_name: [] for param_name in param_names}
     violations: Optional[List[float]] = [] if constraints_enabled else None
-    for trial in study.get_trials(deepcopy=False, states=states):
+    for trial in trials:
         # We extract score from the trial.
         if trial.state is TrialState.COMPLETE:
             if trial.values is None:
@@ -677,7 +671,11 @@ def _get_observation_pairs(
                 violation = sum(v for v in constraint if v > 0)
             violations.append(violation)
 
-    return values, scores, violations
+    # `None` items are intentionally converted to `nan` and then filtered out.
+    # For `nan` conversion, the dtype must be float.
+    config_values = {k: np.asarray(v, dtype=float) for k, v in values.items()}
+
+    return config_values, scores, violations
 
 
 def _split_observation_pairs(
@@ -762,18 +760,6 @@ def _split_observation_pairs(
     return indices_below, indices_above
 
 
-def _build_observation_dict(
-    config_values: Dict[str, np.ndarray], indices: np.ndarray
-) -> Dict[str, np.ndarray]:
-
-    observation_dict = {}
-    for param_name, param_val in config_values.items():
-        param_values = param_val[indices]
-        observation_dict[param_name] = param_values[~np.isnan(param_values)]
-
-    return observation_dict
-
-
 def _compute_hypervolume(solution_set: np.ndarray, reference_point: np.ndarray) -> float:
     return WFG().compute(solution_set, reference_point)
 
@@ -821,7 +807,6 @@ def _solve_hssp(
 
 
 def _calculate_weights_below_for_multi_objective(
-    config_values: Dict[str, np.ndarray],
     loss_vals: List[Tuple[float, List[float]]],
     indices: np.ndarray,
     violations: Optional[List[float]],
@@ -863,9 +848,7 @@ def _calculate_weights_below_for_multi_objective(
         contributions += EPS
         weights_below = np.clip(contributions / np.max(contributions), 0, 1)
 
-    cvals = list(config_values.values())[0][indices]
     # For now, EPS weight is assigned to infeasible trials.
     weights_below_all = np.full(len(indices), EPS)
     weights_below_all[feasible_mask] = weights_below
-    weights_below_all = weights_below_all[~np.isnan(cvals)]
     return weights_below_all
