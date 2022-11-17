@@ -46,12 +46,10 @@ def get_extras_require() -> Dict[str, List[str]]:
 
     requirements = {
         "benchmark": [
-            "asv>=0.5.0",
             "botorch",
             "cma",
             "fakeredis",
             "scikit-optimize",
-            "virtualenv",
         ],
         "checking": [
             "black",
