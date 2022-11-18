@@ -1,3 +1,4 @@
+import sys
 import types
 
 import numpy as np
@@ -12,7 +13,11 @@ from optuna.testing.pruners import DeterministicPruner
 with try_import():
     import catboost as cb
 
-pytestmark = pytest.mark.integration
+# TODO(not522): Remove version constraints if catboost supports Python 3.11
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(sys.version_info >= (3, 8), reason="Python 3.11 is not supported."),
+]
 
 
 def test_catboost_pruning_callback_call() -> None:

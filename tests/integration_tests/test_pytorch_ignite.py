@@ -1,3 +1,4 @@
+import sys
 from typing import Iterable
 from unittest.mock import patch
 
@@ -11,7 +12,11 @@ from optuna.testing.pruners import DeterministicPruner
 with try_import():
     from ignite.engine import Engine
 
-pytestmark = pytest.mark.integration
+# TODO(not522): Remove version constraints if TensorFlow supports Python 3.11
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python 3.11 is not supported."),
+]
 
 
 def test_pytorch_ignite_pruning_handler() -> None:

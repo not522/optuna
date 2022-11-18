@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import sys
 from typing import Any
 from typing import Callable
 from typing import List
@@ -31,7 +32,13 @@ evaluators: List[Union[Type[BaseImportanceEvaluator], ParameterSet]] = [
     FanovaImportanceEvaluator,
     pytest.param(
         optuna.integration.shap.ShapleyImportanceEvaluator,
-        marks=pytest.mark.integration,
+        # TODO(not522): Remove version constraints if shap supports Python 3.11
+        marks=(
+            pytest.mark.integration,
+            pytest.mark.skipif(
+                sys.version_info >= (3, 11), reason="Python 3.11 is not supported."
+            ),
+        ),
     ),
 ]
 

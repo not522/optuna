@@ -1,3 +1,4 @@
+import sys
 from typing import Any
 
 import pytest
@@ -17,7 +18,12 @@ with try_import():
     import torch.nn as nn
     import torch.nn.functional as F
 
-pytestmark = pytest.mark.integration
+
+# TODO(not522): Remove version constraints if fastai supports Python 3.11
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python 3.11 is not supported."),
+]
 
 
 def _generate_dummy_dataset() -> "torch.utils.data.DataLoader":

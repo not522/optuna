@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import sys
 import tempfile
 import time
 from typing import Iterator
@@ -21,7 +22,11 @@ with try_import() as _imports:
     from distributed.utils_test import clean
     from distributed.utils_test import gen_cluster
 
-pytestmark = pytest.mark.integration
+# TODO(not522): Remove version constraints if Dask supports Python 3.11
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python 3.11 is not supported."),
+]
 
 
 STORAGE_MODES = ["inmemory", "sqlite"]

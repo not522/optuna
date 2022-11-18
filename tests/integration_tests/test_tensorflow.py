@@ -1,5 +1,6 @@
 from collections import OrderedDict
 import math
+import sys
 import typing
 from unittest.mock import patch
 
@@ -15,7 +16,11 @@ from optuna.testing.pruners import DeterministicPruner
 with try_import():
     import tensorflow as tf
 
-pytestmark = pytest.mark.integration
+# TODO(not522): Remove version constraints if TensorFlow supports Python 3.11
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python 3.11 is not supported."),
+]
 
 
 def fixed_value_input_fn() -> typing.Tuple[typing.Dict[str, "tf.Tensor"], "tf.Tensor"]:

@@ -1,5 +1,6 @@
 import os
 import shutil
+import sys
 import tempfile
 
 import pytest
@@ -12,7 +13,11 @@ from optuna.integration.tensorboard import TensorBoardCallback
 with try_import():
     from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
-pytestmark = pytest.mark.integration
+# TODO(not522): Remove version constraints if TensorBoard supports Python 3.11
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python 3.11 is not supported."),
+]
 
 
 def _objective_func(trial: optuna.trial.Trial) -> float:

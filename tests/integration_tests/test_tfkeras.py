@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 from packaging import version
 import pytest
@@ -11,7 +13,11 @@ from optuna.testing.pruners import DeterministicPruner
 with try_import():
     import tensorflow as tf
 
-pytestmark = pytest.mark.integration
+# TODO(not522): Remove version constraints if Keras supports Python 3.11
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python 3.11 is not supported."),
+]
 
 
 def test_tfkeras_pruning_callback() -> None:

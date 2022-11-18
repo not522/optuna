@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import sys
 
 import optuna
 from optuna._imports import try_import
@@ -11,7 +12,11 @@ with try_import():
     from keras import Sequential
     from keras.layers import Dense
 
-pytestmark = pytest.mark.integration
+# TODO(not522): Remove version constraints if Keras supports Python 3.11
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python 3.11 is not supported."),
+]
 
 
 @pytest.mark.parametrize("interval, epochs", [(1, 1), (2, 1), (2, 2)])
