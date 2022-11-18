@@ -325,9 +325,17 @@ class TPESampler(BaseSampler):
         states: Container[TrialState]
         if self._constant_liar:
             states = (TrialState.COMPLETE, TrialState.PRUNED, TrialState.RUNNING)
+            trials = study.get_trials(deepcopy=False, states=states)
+            n = len(filter(lambda trial: trial.state != TrialState.RUNNING, trials))
         else:
             states = (TrialState.COMPLETE, TrialState.PRUNED)
-        trials = study.get_trials(deepcopy=False, states=states)
+            trials = study.get_trials(deepcopy=False, states=states)
+            n = len(trials)
+
+        if n < self._n_startup_trials:
+            self._startup_trials.add(trial.number)
+            return
+
         values, scores, violations = _get_observation_pairs(
             study,
             trials,
@@ -335,29 +343,23 @@ class TPESampler(BaseSampler):
             self._constraints_func is not None,
         )
 
-        n = sum(s < float("inf") for s, v in scores)  # Ignore running trials.
-        if n >= self._n_startup_trials:
-            # We divide data into below and above.
-            indices_below, indices_above = _split_observation_pairs(
-                scores, self._gamma(n), violations
-            )
-            self._below_values[trial.number] = {}
-            for k, v in values.items():
-                value = v[indices_below]
-                value = value[~np.isnan(value)]
-                self._below_values[trial.number][k] = value
-            self._above_values[trial.number] = {}
-            for k, v in values.items():
-                value = v[indices_above]
-                value = value[~np.isnan(value)]
-                self._above_values[trial.number][k] = value
+        # We divide data into below and above.
+        indices_below, indices_above = _split_observation_pairs(scores, self._gamma(n), violations)
+        self._below_values[trial.number] = {}
+        for k, v in values.items():
+            value = v[indices_below]
+            value = value[~np.isnan(value)]
+            self._below_values[trial.number][k] = value
+        self._above_values[trial.number] = {}
+        for k, v in values.items():
+            value = v[indices_above]
+            value = value[~np.isnan(value)]
+            self._above_values[trial.number][k] = value
 
-            if study._is_multi_objective():
-                self._weights_below[trial.number] = _calculate_weights_below_for_multi_objective(
-                    scores, indices_below, violations
-                )
-        else:
-            self._startup_trials.add(trial.number)
+        if study._is_multi_objective():
+            self._weights_below[trial.number] = _calculate_weights_below_for_multi_objective(
+                scores, indices_below, violations
+            )
 
     def infer_relative_search_space(
         self, study: Study, trial: FrozenTrial
@@ -450,7 +452,7 @@ class TPESampler(BaseSampler):
         }
 
         if study._is_multi_objective():
-            cvals = list(below_values.values())[0]
+            cvals = list(self._below_values.values())[0]
             weights_below = self._weights_below[trial.number][~np.isnan(cvals)]
             mpe_below = _ParzenEstimator(
                 below, search_space, self._parzen_estimator_parameters, weights_below
@@ -578,11 +580,7 @@ def _get_observation_pairs(
     trials,
     constant_liar: bool = False,  # TODO(hvy): Remove default value and fix unit tests.
     constraints_enabled: bool = False,
-) -> Tuple[
-    Dict[str, np.ndarray],
-    List[Tuple[float, List[float]]],
-    Optional[List[float]],
-]:
+) -> Tuple[Dict[str, np.ndarray], List[Tuple[float, List[float]]], Optional[List[float]]]:
     """Get observation pairs from the study.
 
     This function collects observation pairs from the complete or pruned trials of the study.
