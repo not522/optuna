@@ -320,7 +320,7 @@ class TPESampler(BaseSampler):
         self._rng.seed()
         self._random_sampler.reseed_rng()
 
-    def _get_and_split_past_trials(self, study, trial):
+    def _get_and_split_past_trials(self, study: Study, trial: FrozenTrial) -> None:
 
         states: Container[TrialState]
         if self._constant_liar:
