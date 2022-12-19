@@ -323,7 +323,7 @@ class Study:
         n_trials: Optional[int] = None,
         timeout: Optional[float] = None,
         n_jobs: int = 1,
-        catch: Tuple[Type[Exception], ...] = (),
+        catch: Union[Iterable[Type[Exception]], Type[Exception]] = (),
         callbacks: Optional[List[Callable[["Study", FrozenTrial], None]]] = None,
         gc_after_trial: bool = False,
         show_progress_bar: bool = False,
@@ -427,7 +427,7 @@ class Study:
             n_trials=n_trials,
             timeout=timeout,
             n_jobs=n_jobs,
-            catch=catch,
+            catch=tuple(catch) if isinstance(catch, Iterable) else (catch,),
             callbacks=callbacks,
             gc_after_trial=gc_after_trial,
             show_progress_bar=show_progress_bar,
@@ -658,6 +658,7 @@ class Study:
 
         self._storage.set_study_user_attr(self._study_id, key, value)
 
+    @deprecated_func("3.1.0", "6.0.0")
     def set_system_attr(self, key: str, value: Any) -> None:
         """Set a system attribute to the study.
 
@@ -1411,7 +1412,7 @@ def copy_study(
     )
 
     for key, value in from_study.system_attrs.items():
-        to_study.set_system_attr(key, value)
+        to_study._storage.set_study_system_attr(to_study._study_id, key, value)
 
     for key, value in from_study.user_attrs.items():
         to_study.set_user_attr(key, value)

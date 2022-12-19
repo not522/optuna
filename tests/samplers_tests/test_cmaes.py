@@ -15,8 +15,6 @@ import pytest
 import optuna
 from optuna import create_trial
 from optuna._transform import _SearchSpaceTransform
-from optuna.samplers._cmaes import _concat_optimizer_attrs
-from optuna.samplers._cmaes import _split_optimizer_str
 from optuna.trial import FrozenTrial
 from optuna.trial import TrialState
 
@@ -24,6 +22,11 @@ from optuna.trial import TrialState
 def test_consider_pruned_trials_experimental_warning() -> None:
     with pytest.warns(optuna.exceptions.ExperimentalWarning):
         optuna.samplers.CmaEsSampler(consider_pruned_trials=True)
+
+
+def test_with_margin_experimental_warning() -> None:
+    with pytest.warns(optuna.exceptions.ExperimentalWarning):
+        optuna.samplers.CmaEsSampler(with_margin=True)
 
 
 @pytest.mark.filterwarnings("ignore::optuna.exceptions.ExperimentalWarning")
@@ -66,30 +69,67 @@ def test_init_cmaes_opts(
 
 
 @pytest.mark.filterwarnings("ignore::optuna.exceptions.ExperimentalWarning")
-@patch("optuna.samplers._cmaes.get_warm_start_mgd")
-def test_warm_starting_cmaes(mock_func_ws: MagicMock) -> None:
+@pytest.mark.parametrize("popsize", [None, 8])
+def test_init_cmaes_opts_with_margin(popsize: Optional[int]) -> None:
+    sampler = optuna.samplers.CmaEsSampler(
+        x0={"x": 0, "y": 0},
+        sigma0=0.1,
+        seed=1,
+        n_startup_trials=1,
+        popsize=popsize,
+        with_margin=True,
+    )
+    study = optuna.create_study(sampler=sampler)
+
+    with patch("optuna.samplers._cmaes.CMAwM") as cma_class:
+        cma_obj = MagicMock()
+        cma_obj.ask.return_value = np.array((-1, -1))
+        cma_obj.generation = 0
+        cma_class.return_value = cma_obj
+        study.optimize(
+            lambda t: t.suggest_float("x", -1, 1) + t.suggest_int("y", -1, 1), n_trials=2
+        )
+
+        assert cma_class.call_count == 1
+
+        _, actual_kwargs = cma_class.call_args
+        assert np.array_equal(actual_kwargs["mean"], np.array([0, 0]))
+        assert actual_kwargs["sigma"] == 0.1
+        assert np.allclose(actual_kwargs["bounds"], np.array([(-1, 1), (-1, 1)]))
+        assert np.allclose(actual_kwargs["steps"], np.array([0.0, 1.0]))
+        assert actual_kwargs["seed"] == np.random.RandomState(1).randint(1, 2**32)
+        assert actual_kwargs["n_max_resampling"] == 10 * 2
+        assert actual_kwargs["population_size"] == popsize
+
+
+@pytest.mark.filterwarnings("ignore::optuna.exceptions.ExperimentalWarning")
+@pytest.mark.parametrize("with_margin", [False, True])
+def test_warm_starting_cmaes(with_margin: bool) -> None:
     def objective(trial: optuna.Trial) -> float:
         x = trial.suggest_float("x", -10, 10)
-        y = trial.suggest_float("y", -10, 10)
+        y = trial.suggest_int("y", -10, 10)
         return x**2 + y
 
     source_study = optuna.create_study()
     source_study.optimize(objective, 20)
     source_trials = source_study.get_trials(deepcopy=False)
 
-    mock_func_ws.return_value = (np.zeros(2), 0.0, np.zeros((2, 2)))
-    sampler = optuna.samplers.CmaEsSampler(seed=1, n_startup_trials=1, source_trials=source_trials)
-    study = optuna.create_study(sampler=sampler)
-    study.optimize(objective, 2)
-    assert mock_func_ws.call_count == 1
+    with patch("optuna.samplers._cmaes.get_warm_start_mgd") as mock_func_ws:
+        mock_func_ws.return_value = (np.zeros(2), 0.0, np.zeros((2, 2)))
+        sampler = optuna.samplers.CmaEsSampler(
+            seed=1, n_startup_trials=1, with_margin=with_margin, source_trials=source_trials
+        )
+        study = optuna.create_study(sampler=sampler)
+        study.optimize(objective, 2)
+        assert mock_func_ws.call_count == 1
 
 
 @pytest.mark.filterwarnings("ignore::optuna.exceptions.ExperimentalWarning")
-@patch("optuna.samplers._cmaes.get_warm_start_mgd")
-def test_warm_starting_cmaes_maximize(mock_func_ws: MagicMock) -> None:
+@pytest.mark.parametrize("with_margin", [False, True])
+def test_warm_starting_cmaes_maximize(with_margin: bool) -> None:
     def objective(trial: optuna.Trial) -> float:
         x = trial.suggest_float("x", -10, 10)
-        y = trial.suggest_float("y", -10, 10)
+        y = trial.suggest_int("y", -10, 10)
         # Objective values are negative.
         return -(x**2) - (y - 5) ** 2
 
@@ -97,15 +137,18 @@ def test_warm_starting_cmaes_maximize(mock_func_ws: MagicMock) -> None:
     source_study.optimize(objective, 20)
     source_trials = source_study.get_trials(deepcopy=False)
 
-    mock_func_ws.return_value = (np.zeros(2), 0.0, np.zeros((2, 2)))
-    sampler = optuna.samplers.CmaEsSampler(seed=1, n_startup_trials=1, source_trials=source_trials)
-    study = optuna.create_study(sampler=sampler, direction="maximize")
-    study.optimize(objective, 2)
-    assert mock_func_ws.call_count == 1
+    with patch("optuna.samplers._cmaes.get_warm_start_mgd") as mock_func_ws:
+        mock_func_ws.return_value = (np.zeros(2), 0.0, np.zeros((2, 2)))
+        sampler = optuna.samplers.CmaEsSampler(
+            seed=1, n_startup_trials=1, with_margin=with_margin, source_trials=source_trials
+        )
+        study = optuna.create_study(sampler=sampler, direction="maximize")
+        study.optimize(objective, 2)
+        assert mock_func_ws.call_count == 1
 
-    solutions_arg = mock_func_ws.call_args[0][0]
-    is_positive = [x[1] >= 0 for x in solutions_arg]
-    assert all(is_positive)
+        solutions_arg = mock_func_ws.call_args[0][0]
+        is_positive = [x[1] >= 0 for x in solutions_arg]
+        assert all(is_positive)
 
 
 @pytest.mark.filterwarnings("ignore::optuna.exceptions.ExperimentalWarning")
@@ -135,9 +178,13 @@ def test_should_raise_exception() -> None:
             restart_strategy="invalid-restart-strategy",
         )
 
+    with pytest.raises(ValueError):
+        optuna.samplers.CmaEsSampler(use_separable_cma=True, with_margin=True)
+
 
 @pytest.mark.filterwarnings("ignore::optuna.exceptions.ExperimentalWarning")
-def test_incompatible_search_space() -> None:
+@pytest.mark.parametrize("with_margin", [False, True])
+def test_incompatible_search_space(with_margin: bool) -> None:
     def objective1(trial: optuna.Trial) -> float:
         x0 = trial.suggest_float("x0", 2, 3)
         x1 = trial.suggest_float("x1", 1e-2, 1e2, log=True)
@@ -147,7 +194,9 @@ def test_incompatible_search_space() -> None:
     source_study.optimize(objective1, 20)
 
     # Should not raise an exception.
-    sampler = optuna.samplers.CmaEsSampler(source_trials=source_study.trials)
+    sampler = optuna.samplers.CmaEsSampler(
+        with_margin=with_margin, source_trials=source_study.trials
+    )
     target_study1 = optuna.create_study(sampler=sampler)
     target_study1.optimize(objective1, 20)
 
@@ -158,7 +207,9 @@ def test_incompatible_search_space() -> None:
         return x0 + x1 + x2
 
     # Should raise an exception.
-    sampler = optuna.samplers.CmaEsSampler(source_trials=source_study.trials)
+    sampler = optuna.samplers.CmaEsSampler(
+        with_margin=with_margin, source_trials=source_study.trials
+    )
     target_study2 = optuna.create_study(sampler=sampler)
     with pytest.raises(ValueError):
         target_study2.optimize(objective2, 20)
@@ -262,6 +313,30 @@ def _create_trials() -> List[FrozenTrial]:
     return trials
 
 
+@pytest.mark.parametrize(
+    "options, key",
+    [
+        ({"with_margin": False, "use_separable_cma": False}, "cma:"),
+        ({"with_margin": True, "use_separable_cma": False}, "cmawm:"),
+        ({"with_margin": False, "use_separable_cma": True}, "sepcma:"),
+    ],
+)
+def test_sampler_attr_key(options: Dict[str, bool], key: str) -> None:
+    # Test sampler attr_key propery
+    sampler = optuna.samplers.CmaEsSampler(
+        with_margin=options["with_margin"], use_separable_cma=options["use_separable_cma"]
+    )
+    assert sampler._attr_keys.optimizer.startswith(key)
+    assert sampler._attr_keys.n_restarts.startswith(key)
+    assert sampler._attr_keys.generation(0).startswith(key)
+
+    sampler._restart_strategy = "ipop"
+    for i in range(3):
+        assert sampler._attr_keys.generation(i).startswith(
+            (key + "restart_{}:".format(i) + "generation")
+        )
+
+
 @pytest.mark.parametrize("popsize", [None, 16])
 def test_population_size_is_multiplied_when_enable_ipop(popsize: Optional[int]) -> None:
     inc_popsize = 2
@@ -331,7 +406,7 @@ def test_restore_optimizer_from_substrings() -> None:
     optimizer = CMA(np.zeros(10), sigma=1.3)
     optimizer_str = pickle.dumps(optimizer).hex()
 
-    system_attrs: Dict[str, Any] = _split_optimizer_str(optimizer_str)
+    system_attrs: Dict[str, Any] = sampler._split_optimizer_str(optimizer_str)
     assert len(system_attrs) > 1
     system_attrs["cma:n_restarts"] = 1
 
@@ -358,10 +433,11 @@ def test_restore_optimizer_from_substrings() -> None:
     ],
 )
 def test_split_and_concat_optimizer_string(dummy_optimizer_str: str, attr_len: int) -> None:
+    sampler = optuna.samplers.CmaEsSampler()
     with patch("optuna.samplers._cmaes._SYSTEM_ATTR_MAX_LENGTH", 5):
-        attrs = _split_optimizer_str(dummy_optimizer_str)
+        attrs = sampler._split_optimizer_str(dummy_optimizer_str)
         assert len(attrs) == attr_len
-        actual = _concat_optimizer_attrs(attrs)
+        actual = sampler._concat_optimizer_attrs(attrs)
         assert dummy_optimizer_str == actual
 
 
@@ -420,3 +496,33 @@ def test_is_compatible_search_space() -> None:
             "x1": optuna.distributions.CategoricalDistribution(["foo", "bar", "baz", "qux"]),
         },
     )
+
+
+def test_internal_optimizer_with_margin() -> None:
+    def objective_discrete(trial: optuna.Trial) -> float:
+        x = trial.suggest_int("x", -10, 10)
+        y = trial.suggest_int("y", -10, 10)
+        return x**2 + y
+
+    def objective_mixed(trial: optuna.Trial) -> float:
+        x = trial.suggest_float("x", -10, 10)
+        y = trial.suggest_int("y", -10, 10)
+        return x**2 + y
+
+    def objective_continuous(trial: optuna.Trial) -> float:
+        x = trial.suggest_float("x", -10, 10)
+        y = trial.suggest_float("y", -10, 10)
+        return x**2 + y
+
+    objectives = [objective_discrete, objective_mixed, objective_continuous]
+    # When all the seach spaces are continuous, `CMA` is used.
+    expected_calls = [(0, 1), (0, 1), (1, 0)]
+    for objective, (cma_call, cmawm_call) in zip(objectives, expected_calls):
+        with patch("optuna.samplers._cmaes.CMA") as cma_class_mock, patch(
+            "optuna.samplers._cmaes.CMAwM"
+        ) as cmawm_class_mock:
+            sampler = optuna.samplers.CmaEsSampler(with_margin=True)
+            study = optuna.create_study(sampler=sampler)
+            study.optimize(objective, n_trials=2)
+            assert cma_class_mock.call_count == cma_call
+            assert cmawm_class_mock.call_count == cmawm_call
