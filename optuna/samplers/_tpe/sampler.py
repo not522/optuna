@@ -479,11 +479,14 @@ class TPESampler(BaseSampler):
         above = {k: np.asarray(v, dtype=float) for k, v in above_values.items()}
 
         if study._is_multi_objective():
-            cvals = list(below_values.values())[0]
             weights_below = _calculate_weights_below_for_multi_objective(
                 below_trials, study, self._constraints_enabled
             )
-            weights_below = weights_below[~np.isnan(cvals)]
+            active_index = np.zeros(len(below_trials), dtype=bool)
+            for i in range(len(below_trials)):
+                if next(iter(search_space)) in below_trials[i].params:
+                    active_index[i] = True
+            weights_below = weights_below[np.asarray(active_index, dtype=bool)]
             mpe_below = _ParzenEstimator(
                 below, search_space, self._parzen_estimator_parameters, weights_below
             )
