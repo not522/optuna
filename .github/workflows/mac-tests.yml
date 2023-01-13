@@ -100,6 +100,8 @@ jobs:
         pip install --progress-bar off .[optional]
         pip install --progress-bar off .[integration]
 
+        pip freeze
+
 
     - name: Tests
       run: |

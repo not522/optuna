@@ -74,6 +74,8 @@ jobs:
 
         pip install --progress-bar off kurobako
 
+        pip freeze
+
     - name: Cache kurobako CLI
       id: cache-kurobako
       uses: actions/cache@v3

@@ -98,6 +98,8 @@ jobs:
       run: |
         pip install --progress-bar off PyMySQL cryptography psycopg2-binary redis
 
+        pip freeze
+
     - name: Tests MySQL
       run: |
         pytest tests/storages_tests/test_with_server.py

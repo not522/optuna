@@ -58,6 +58,8 @@ jobs:
         pip install --progress-bar off .[optional]
         pip install --progress-bar off .[integration] --extra-index-url https://download.pytorch.org/whl/cpu
 
+        pip freeze
+
     - name: Tests
       run: |
         export OMPI_MCA_rmaps_base_oversubscribe=yes

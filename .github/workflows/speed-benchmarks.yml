@@ -41,6 +41,9 @@ jobs:
         optuna --version
 
         pip install --progress-bar off .[benchmark]
+
+        pip freeze
+
         asv machine --yes
 
     - name: Speed benchmarks

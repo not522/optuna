@@ -67,6 +67,7 @@ jobs:
     - name: Verify the built image
       run: |
         docker run "${HUB_TAG}" optuna --version
+        docker run "${HUB_TAG}" pip freeze
 
     - name: Login & Push to Docker Hub
       if: ${{ github.event_name != 'pull_request' }}
