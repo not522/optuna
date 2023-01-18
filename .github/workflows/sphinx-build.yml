@@ -2,8 +2,6 @@ name: Sphinx
 
 on:
   push:
-    branches:
-      - master
   pull_request: {}
 
 concurrency:
@@ -44,6 +42,7 @@ jobs:
       run: |
         cd docs
         make html
+        make latexpdf
         cd ../
 
     - uses: actions/upload-artifact@v2
