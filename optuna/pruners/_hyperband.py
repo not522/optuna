@@ -1,8 +1,11 @@
 import binascii
 import math
+from typing import Any
 from typing import Container
+from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Sequence
 from typing import Union
 
 import optuna
@@ -142,6 +145,7 @@ class HyperbandPruner(BasePruner):
         max_resource: Union[str, int] = "auto",
         reduction_factor: int = 3,
         bootstrap_count: int = 0,
+        sampler: Optional["optuna.samplers.BaseSampler"] = None,
     ) -> None:
 
         self._min_resource = min_resource
@@ -152,6 +156,7 @@ class HyperbandPruner(BasePruner):
         self._total_trial_allocation_budget = 0
         self._trial_allocation_budgets: List[int] = []
         self._n_brackets: Optional[int] = None
+        self._sampler = sampler
 
         if not isinstance(self._max_resource, int) and self._max_resource != "auto":
             raise ValueError(
@@ -175,6 +180,71 @@ class HyperbandPruner(BasePruner):
         _logger.debug("{}th bracket is selected".format(bracket_id))
         bracket_study = self._create_bracket_study(study, bracket_id)
         return self._pruners[bracket_id].prune(bracket_study, trial)
+
+    @property
+    def sampler(self) -> "optuna.samplers.BaseSampler":
+        class BracketSampler(optuna.samplers.BaseSampler):
+            def __init__(
+                self, original_sampler: optuna.samplers.BaseSampler, pruner: HyperbandPruner
+            ):
+                self._original_sampler = original_sampler
+                self._pruner = pruner
+
+            def __str__(self) -> str:
+                return str(self._original_sampler)
+
+            def infer_relative_search_space(
+                self, study: optuna.study.Study, trial: optuna.trial.FrozenTrial
+            ) -> Dict[str, optuna.distributions.BaseDistribution]:
+                bracket_study = self._pruner._create_bracket_study(
+                    study, self._pruner._get_bracket_id(study, trial)
+                )
+                return self._original_sampler.infer_relative_search_space(bracket_study, trial)
+
+            def sample_relative(
+                self,
+                study: optuna.study.Study,
+                trial: optuna.trial.FrozenTrial,
+                search_space: Dict[str, optuna.distributions.BaseDistribution],
+            ) -> Dict[str, Any]:
+                bracket_study = self._pruner._create_bracket_study(
+                    study, self._pruner._get_bracket_id(study, trial)
+                )
+                return self._original_sampler.sample_relative(bracket_study, trial, search_space)
+
+            def sample_independent(
+                self,
+                study: optuna.study.Study,
+                trial: optuna.trial.FrozenTrial,
+                param_name: str,
+                param_distribution: optuna.distributions.BaseDistribution,
+            ) -> Any:
+                bracket_study = self._pruner._create_bracket_study(
+                    study, self._pruner._get_bracket_id(study, trial)
+                )
+                return self._original_sampler.sample_independent(
+                    bracket_study, trial, param_name, param_distribution
+                )
+
+            def after_trial(
+                self,
+                study: optuna.study.Study,
+                trial: optuna.trial.FrozenTrial,
+                state: optuna.trial.TrialState,
+                values: Optional[Sequence[float]],
+            ) -> None:
+                bracket_study = self._pruner._create_bracket_study(
+                    study, self._pruner._get_bracket_id(study, trial)
+                )
+                return self._original_sampler.after_trial(bracket_study, trial, state, values)
+
+            def reseed_rng(self) -> None:
+                return self._original_sampler.reseed_rng()
+
+        if self._sampler is None:
+            raise RuntimeError("The original sampler is not set.")
+
+        return BracketSampler(self._sampler, self)
 
     def _try_initialization(self, study: "optuna.study.Study") -> None:
         if self._max_resource == "auto":

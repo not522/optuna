@@ -10,7 +10,6 @@ import warnings
 import optuna
 from optuna import distributions
 from optuna import logging
-from optuna import pruners
 from optuna._deprecated import deprecated_func
 from optuna.distributions import BaseDistribution
 from optuna.distributions import CategoricalChoiceType
@@ -58,13 +57,12 @@ class Trial(BaseTrial):
     def _init_relative_params(self) -> None:
 
         self._cached_frozen_trial = self.storage.get_trial(self._trial_id)
-        study = pruners._filter_study(self.study, self._cached_frozen_trial)
 
         self.relative_search_space = self.study.sampler.infer_relative_search_space(
-            study, self._cached_frozen_trial
+            self.study, self._cached_frozen_trial
         )
         self.relative_params = self.study.sampler.sample_relative(
-            study, self._cached_frozen_trial, self.relative_search_space
+            self.study, self._cached_frozen_trial, self.relative_search_space
         )
 
     def suggest_float(
@@ -623,9 +621,8 @@ class Trial(BaseTrial):
             elif self._is_relative_param(name, distribution):
                 param_value = self.relative_params[name]
             else:
-                study = pruners._filter_study(self.study, trial)
                 param_value = self.study.sampler.sample_independent(
-                    study, trial, name, distribution
+                    self.study, trial, name, distribution
                 )
 
             # `param_value` is validated here (invalid value like `np.nan` raises ValueError).
