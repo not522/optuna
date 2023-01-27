@@ -142,6 +142,7 @@ class HyperbandPruner(BasePruner):
         max_resource: Union[str, int] = "auto",
         reduction_factor: int = 3,
         bootstrap_count: int = 0,
+        filter_study_for_sampler: bool = True,
     ) -> None:
 
         self._min_resource = min_resource
@@ -152,6 +153,7 @@ class HyperbandPruner(BasePruner):
         self._total_trial_allocation_budget = 0
         self._trial_allocation_budgets: List[int] = []
         self._n_brackets: Optional[int] = None
+        self._filter_study_for_sampler = filter_study_for_sampler
 
         if not isinstance(self._max_resource, int) and self._max_resource != "auto":
             raise ValueError(
@@ -258,6 +260,9 @@ class HyperbandPruner(BasePruner):
     def _create_bracket_study(
         self, study: "optuna.study.Study", bracket_id: int
     ) -> "optuna.study.Study":
+        if not self._filter_study_for_sampler:
+            return study
+
         # This class is assumed to be passed to
         # `SuccessiveHalvingPruner.prune` in which `get_trials`,
         # `direction`, and `storage` are used.

@@ -229,10 +229,7 @@ class GridSampler(BaseSampler):
         visited_grids = []
         running_grids = []
 
-        # We directly query the storage to get trials here instead of `study.get_trials`,
-        # since some pruners such as `HyperbandPruner` use the study transformed
-        # to filter trials. See https://github.com/optuna/optuna/issues/2327 for details.
-        trials = study._storage.get_all_trials(study._study_id, deepcopy=False)
+        trials = study.get_trials(deepcopy=False)
 
         for t in trials:
             if "grid_id" in t.system_attrs and self._same_search_space(

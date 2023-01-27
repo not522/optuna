@@ -219,7 +219,10 @@ def test_incompatibility_between_bootstrap_count_and_auto_max_resource() -> None
 
 def test_hyperband_pruner_and_grid_sampler() -> None:
     pruner = optuna.pruners.HyperbandPruner(
-        min_resource=MIN_RESOURCE, max_resource=MAX_RESOURCE, reduction_factor=REDUCTION_FACTOR
+        min_resource=MIN_RESOURCE,
+        max_resource=MAX_RESOURCE,
+        reduction_factor=REDUCTION_FACTOR,
+        filter_study_for_sampler=False,
     )
 
     search_space = {"x": [-50, 0, 50], "y": [-99, 0, 99]}
