@@ -17,6 +17,10 @@ from optuna.trial import FrozenTrial
 from optuna.trial import TrialState
 
 
+_SYSTEM_ATTR_KEY_PUSH = "BruteForceSampler:push"
+_SYSTEM_ATTR_KEY_POP = "BruteForceSampler:pop"
+
+
 @experimental_class("3.1.0")
 class BruteForceSampler(BaseSampler):
     """Sampler using brute force.
@@ -66,9 +70,40 @@ class BruteForceSampler(BaseSampler):
     def __init__(self, seed: Optional[int] = None) -> None:
         self._rng = np.random.RandomState(seed)
 
+    def _check_unvisited_node(self, node: Dict[str, Any], study: Study) -> bool:
+        for trial in study.get_trials(deepcopy=False):
+            if node == study._storage.get_trial_system_attrs(trial._trial_id).get(
+                _SYSTEM_ATTR_KEY_POP
+            ):
+                return False
+        return True
+
+    def _pop_unvisited_node(self, study: Study) -> Optional[Dict[str, Any]]:
+        unvisited_nodes = []
+        for past_trial in study.get_trials(deepcopy=False):
+            nodes = study._storage.get_trial_system_attrs(past_trial._trial_id).get(
+                _SYSTEM_ATTR_KEY_PUSH
+            )
+            if nodes is not None:
+                unvisited_nodes += nodes
+
+        self._rng.shuffle(unvisited_nodes)
+
+        for node in unvisited_nodes:
+            if self._check_unvisited_node(node, study):
+                return node
+
+        return None
+
     def infer_relative_search_space(
         self, study: Study, trial: FrozenTrial
     ) -> Dict[str, BaseDistribution]:
+        node = self._pop_unvisited_node(study)
+        if node is not None:
+            study._storage.set_trial_system_attr(trial._trial_id, _SYSTEM_ATTR_KEY_POP, node)
+        else:
+            study._storage.set_trial_system_attr(trial._trial_id, _SYSTEM_ATTR_KEY_POP, {})
+
         return {}
 
     def sample_relative(
@@ -83,15 +118,35 @@ class BruteForceSampler(BaseSampler):
         param_name: str,
         param_distribution: BaseDistribution,
     ) -> Any:
+        enqueued_params = study._storage.get_trial_system_attrs(trial._trial_id)[
+            _SYSTEM_ATTR_KEY_POP
+        ]
+        if param_name in enqueued_params:
+            param_value = enqueued_params[param_name]
+            internal_repr = param_distribution.to_internal_repr(param_value)
+            if not param_distribution._contains(internal_repr):
+                raise RuntimeError("BruteForceSampler does not support dynamic search space.")
+            return param_value
+
         candidates = _enumerate_candidates(param_distribution)
         assert len(candidates) > 0
 
         self._rng.shuffle(candidates)
 
+        unvisited_nodes = study._storage.get_trial_system_attrs(trial._trial_id).get(
+            _SYSTEM_ATTR_KEY_PUSH
+        )
+        if unvisited_nodes is None:
+            unvisited_nodes = []
+
         for value in candidates[1:]:
             params = trial.params.copy()
             params[param_name] = value
-            study.enqueue_trial(params, skip_if_exists=True)
+            unvisited_nodes.append(params)
+
+        study._storage.set_trial_system_attr(
+            trial._trial_id, _SYSTEM_ATTR_KEY_PUSH, unvisited_nodes
+        )
 
         return candidates[0]
 
@@ -102,7 +157,8 @@ class BruteForceSampler(BaseSampler):
         state: TrialState,
         values: Optional[Sequence[float]],
     ) -> None:
-        if len(study.get_trials(deepcopy=False, states=(TrialState.WAITING,))) == 0:
+        node = self._pop_unvisited_node(study)
+        if node is None:
             study.stop()
 
 
