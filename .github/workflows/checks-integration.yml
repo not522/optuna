@@ -2,8 +2,6 @@ name: Checks (Integration)
 
 on:
   push:
-    branches:
-      - master
   schedule:
     - cron: '0 23 * * SUN-THU'
   workflow_dispatch:
@@ -52,6 +50,6 @@ jobs:
     - name: isort
       run: isort . --check --diff
     - name: mypy
-      run: mypy . --warn-unused-ignores
+      run: mypy . --config=mypy-with-integration.ini
     - name: blackdoc
       run: blackdoc . --check --diff
