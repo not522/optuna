@@ -17,7 +17,6 @@ from optuna.distributions import CategoricalChoiceType
 from optuna.distributions import CategoricalDistribution
 from optuna.distributions import FloatDistribution
 from optuna.distributions import IntDistribution
-from optuna.trial import FrozenTrial
 from optuna.trial._base import BaseTrial
 
 
@@ -528,7 +527,7 @@ class Trial(BaseTrial):
                 "Trial.should_prune is not supported for multi-objective optimization."
             )
 
-        trial = copy.deepcopy(self._get_latest_trial())
+        trial = copy.deepcopy(self._cached_frozen_trial)
         return self.study.pruner.prune(self.study, trial)
 
     def set_user_attr(self, key: str, value: Any) -> None:
@@ -610,7 +609,7 @@ class Trial(BaseTrial):
         storage = self.storage
         trial_id = self._trial_id
 
-        trial = self._get_latest_trial()
+        trial = copy.deepcopy(self._cached_frozen_trial)
 
         if name in trial.distributions:
             # No need to sample if already suggested.
@@ -686,12 +685,6 @@ class Trial(BaseTrial):
                 "Using these values: {}".format(name, old_distribution._asdict()),
                 RuntimeWarning,
             )
-
-    def _get_latest_trial(self) -> FrozenTrial:
-        # TODO(eukaryo): Remove this method after `system_attrs` property is deprecated.
-        system_attrs = copy.deepcopy(self.storage.get_trial_system_attrs(self._trial_id))
-        self._cached_frozen_trial.system_attrs = system_attrs
-        return self._cached_frozen_trial
 
     @property
     def params(self) -> Dict[str, Any]:

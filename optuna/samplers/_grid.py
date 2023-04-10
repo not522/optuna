@@ -128,7 +128,8 @@ class GridSampler(BaseSampler):
 
         # When the trial is created by RetryFailedTrialCallback or enqueue_trial, we should not
         # assign a new grid_id.
-        if "grid_id" in trial.system_attrs or "fixed_params" in trial.system_attrs:
+        system_attrs = study._storage.get_trial_system_attrs(trial._trial_id)
+        if "grid_id" in system_attrs or "fixed_params" in system_attrs:
             return {}
 
         target_grids = self._get_unvisited_grid_ids(study)
@@ -168,7 +169,7 @@ class GridSampler(BaseSampler):
         param_name: str,
         param_distribution: BaseDistribution,
     ) -> Any:
-        if "grid_id" not in trial.system_attrs:
+        if "grid_id" not in study._storage.get_trial_system_attrs(trial._trial_id):
             message = "All parameters must be specified when using GridSampler with enqueue_trial."
             raise ValueError(message)
 
@@ -179,7 +180,7 @@ class GridSampler(BaseSampler):
         # TODO(c-bata): Reduce the number of duplicated evaluations on multiple workers.
         # Current selection logic may evaluate the same parameters multiple times.
         # See https://gist.github.com/c-bata/f759f64becb24eea2040f4b2e3afce8f for details.
-        grid_id = trial.system_attrs["grid_id"]
+        grid_id = study._storage.get_trial_system_attrs(trial._trial_id)["grid_id"]
         param_value = self._all_grids[grid_id][self._param_names.index(param_name)]
         contains = param_distribution._contains(param_distribution.to_internal_repr(param_value))
         if not contains:
@@ -229,13 +230,19 @@ class GridSampler(BaseSampler):
         trials = study._storage.get_all_trials(study._study_id, deepcopy=False)
 
         for t in trials:
-            if "grid_id" in t.system_attrs and self._same_search_space(
-                t.system_attrs["search_space"]
+            if "grid_id" in study._storage.get_trial_system_attrs(
+                t._trial_id
+            ) and self._same_search_space(
+                study._storage.get_trial_system_attrs(t._trial_id)["search_space"]
             ):
                 if t.state.is_finished():
-                    visited_grids.append(t.system_attrs["grid_id"])
+                    visited_grids.append(
+                        study._storage.get_trial_system_attrs(t._trial_id)["grid_id"]
+                    )
                 elif t.state == TrialState.RUNNING:
-                    running_grids.append(t.system_attrs["grid_id"])
+                    running_grids.append(
+                        study._storage.get_trial_system_attrs(t._trial_id)["grid_id"]
+                    )
 
         unvisited_grids = set(range(self._n_min_trials)) - set(visited_grids) - set(running_grids)
 

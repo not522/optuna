@@ -667,7 +667,7 @@ def test_persisted_param() -> None:
     with tempfile.NamedTemporaryFile() as fp:
         storage = f"sqlite:///{fp.name}"
         study = create_study(storage=storage, study_name=study_name)
-        assert isinstance(study._storage, storages._CachedStorage), "Pre-condition."
+        assert isinstance(study._storage, storages.RDBStorage), "Pre-condition."
 
         # Test more than one trial. The `_CachedStorage` does a cache miss for the first trial and
         # thus behaves differently for the first trial in comparisons to the following.

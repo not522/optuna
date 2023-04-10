@@ -39,7 +39,7 @@ EXAMPLE_ATTRS: Dict[str, JSONSerializable] = {
 
 def test_get_storage() -> None:
     assert isinstance(optuna.storages.get_storage(None), InMemoryStorage)
-    assert isinstance(optuna.storages.get_storage("sqlite:///:memory:"), _CachedStorage)
+    assert isinstance(optuna.storages.get_storage("sqlite:///:memory:"), RDBStorage)
 
 
 @pytest.mark.parametrize("storage_mode", STORAGE_MODES)

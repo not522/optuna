@@ -1,4 +1,5 @@
 import copy
+from datetime import datetime
 import math
 from typing import Optional
 from typing import Sequence
@@ -175,7 +176,10 @@ def _tell_with_warning(
     finally:
         study._storage.set_trial_state_values(frozen_trial._trial_id, state, values)
 
-    frozen_trial = copy.deepcopy(study._storage.get_trial(frozen_trial._trial_id))
+    # frozen_trial = copy.deepcopy(study._storage.get_trial(frozen_trial._trial_id))
+    frozen_trial.state = state
+    frozen_trial.values = copy.deepcopy(values)
+    frozen_trial.datetime_complete = datetime.now()
 
     if warning_message is not None:
         frozen_trial._system_attrs[STUDY_TELL_WARNING_KEY] = warning_message
