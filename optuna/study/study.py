@@ -1,4 +1,5 @@
 import copy
+from datetime import datetime
 from numbers import Real
 import threading
 from typing import Any
@@ -1036,7 +1037,9 @@ class Study:
         for trial in self._storage.get_all_trials(
             self._study_id, deepcopy=False, states=(TrialState.WAITING,)
         ):
-            if not self._storage.set_trial_state_values(trial._trial_id, state=TrialState.RUNNING):
+            try:
+                self._storage.run_trial(trial._trial_id, datetime.now())
+            except RuntimeError:
                 continue
 
             _logger.debug("Trial {} popped from the trial queue.".format(trial.number))

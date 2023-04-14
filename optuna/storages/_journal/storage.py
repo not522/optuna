@@ -43,10 +43,13 @@ class JournalOperation(enum.IntEnum):
     SET_STUDY_SYSTEM_ATTR = 3
     CREATE_TRIAL = 4
     SET_TRIAL_PARAM = 5
-    SET_TRIAL_STATE_VALUES = 6
     SET_TRIAL_INTERMEDIATE_VALUE = 7
     SET_TRIAL_USER_ATTR = 8
     SET_TRIAL_SYSTEM_ATTR = 9
+    RUN_TRIAL = 10
+    COMPLETE_TRIAL = 11
+    PRUNE_TRIAL = 12
+    FAIL_TRIAL = 13
 
 
 @experimental_class("3.1.0")
@@ -308,28 +311,54 @@ class JournalStorage(BaseStorage):
                 )
             return self._replay_result._study_id_to_trial_ids[study_id][trial_number]
 
-    def set_trial_state_values(
-        self, trial_id: int, state: TrialState, values: Optional[Sequence[float]] = None
-    ) -> bool:
+    def run_trial(self, trial_id: int, datetime_start: datetime.datetime) -> None:
         log: Dict[str, Any] = {
             "trial_id": trial_id,
-            "state": state,
-            "values": values,
+            "datetime_start": datetime_start.isoformat(timespec="microseconds"),
         }
 
-        if state == TrialState.RUNNING:
-            log["datetime_start"] = datetime.datetime.now().isoformat(timespec="microseconds")
-        elif state.is_finished():
-            log["datetime_complete"] = datetime.datetime.now().isoformat(timespec="microseconds")
-
         with self._thread_lock:
-            self._write_log(JournalOperation.SET_TRIAL_STATE_VALUES, log)
+            self._write_log(JournalOperation.RUN_TRIAL, log)
             self._sync_with_backend()
 
-            if state == TrialState.RUNNING and trial_id != self._replay_result.owned_trial_id:
-                return False
-            else:
-                return True
+    def complete_trial(
+        self, trial_id: int, values: Sequence[float], datetime_complete: datetime.datetime
+    ) -> None:
+        log: Dict[str, Any] = {
+            "trial_id": trial_id,
+            "values": values,
+            "datetime_complete": datetime_complete.isoformat(timespec="microseconds"),
+        }
+
+        with self._thread_lock:
+            self._write_log(JournalOperation.COMPLETE_TRIAL, log)
+            self._sync_with_backend()
+
+    def prune_trial(
+        self,
+        trial_id: int,
+        values: Optional[Sequence[float]],
+        datetime_complete: datetime.datetime,
+    ) -> None:
+        log: Dict[str, Any] = {
+            "trial_id": trial_id,
+            "values": values,
+            "datetime_complete": datetime_complete.isoformat(timespec="microseconds"),
+        }
+
+        with self._thread_lock:
+            self._write_log(JournalOperation.PRUNE_TRIAL, log)
+            self._sync_with_backend()
+
+    def fail_trial(self, trial_id: int, datetime_complete: datetime.datetime) -> None:
+        log: Dict[str, Any] = {
+            "trial_id": trial_id,
+            "datetime_complete": datetime_complete.isoformat(timespec="microseconds"),
+        }
+
+        with self._thread_lock:
+            self._write_log(JournalOperation.FAIL_TRIAL, log)
+            self._sync_with_backend()
 
     def set_trial_intermediate_value(
         self, trial_id: int, step: int, intermediate_value: float
@@ -411,14 +440,20 @@ class JournalStorageReplayResult:
                 self._apply_create_trial(log)
             elif op == JournalOperation.SET_TRIAL_PARAM:
                 self._apply_set_trial_param(log)
-            elif op == JournalOperation.SET_TRIAL_STATE_VALUES:
-                self._apply_set_trial_state_values(log)
             elif op == JournalOperation.SET_TRIAL_INTERMEDIATE_VALUE:
                 self._apply_set_trial_intermediate_value(log)
             elif op == JournalOperation.SET_TRIAL_USER_ATTR:
                 self._apply_set_trial_user_attr(log)
             elif op == JournalOperation.SET_TRIAL_SYSTEM_ATTR:
                 self._apply_set_trial_system_attr(log)
+            elif op == JournalOperation.RUN_TRIAL:
+                self._apply_run_trial(log)
+            elif op == JournalOperation.COMPLETE_TRIAL:
+                self._apply_complete_trial(log)
+            elif op == JournalOperation.PRUNE_TRIAL:
+                self._apply_prune_trial(log)
+            elif op == JournalOperation.FAIL_TRIAL:
+                self._apply_fail_trial(log)
             else:
                 assert False, "Should not reach."
 
@@ -592,29 +627,6 @@ class JournalStorageReplayResult:
         trial.distributions = {**copy.copy(trial.distributions), param_name: distribution}
         self._trials[trial_id] = trial
 
-    def _apply_set_trial_state_values(self, log: Dict[str, Any]) -> None:
-        trial_id = log["trial_id"]
-
-        if not self._trial_exists_and_updatable(trial_id, log):
-            return
-
-        state = TrialState(log["state"])
-        if state == self._trials[trial_id].state and state == TrialState.RUNNING:
-            return
-
-        trial = copy.copy(self._trials[trial_id])
-        if state == TrialState.RUNNING:
-            trial.datetime_start = datetime.datetime.fromisoformat(log["datetime_start"])
-            if self._is_issued_by_this_worker(log):
-                self._worker_id_to_owned_trial_id[self.worker_id] = trial_id
-        if state.is_finished():
-            trial.datetime_complete = datetime.datetime.fromisoformat(log["datetime_complete"])
-        trial.state = state
-        if log["values"] is not None:
-            trial.values = log["values"]
-
-        self._trials[trial_id] = trial
-
     def _apply_set_trial_intermediate_value(self, log: Dict[str, Any]) -> None:
         trial_id = log["trial_id"]
 
@@ -647,6 +659,61 @@ class JournalStorageReplayResult:
             }
             self._trials[trial_id] = trial
 
+    def _apply_run_trial(self, log: Dict[str, Any]) -> None:
+        trial_id = log["trial_id"]
+
+        if not self._validate_trial_and_states(trial_id, log, TrialState.RUNNING):
+            return
+
+        trial = copy.copy(self._trials[trial_id])
+        trial.datetime_start = datetime.datetime.fromisoformat(log["datetime_start"])
+        if self._is_issued_by_this_worker(log):
+            self._worker_id_to_owned_trial_id[self.worker_id] = trial_id
+        trial.state = TrialState.RUNNING
+
+        self._trials[trial_id] = trial
+
+    def _apply_complete_trial(self, log: Dict[str, Any]) -> None:
+        trial_id = log["trial_id"]
+
+        if not self._validate_trial_and_states(trial_id, log, TrialState.COMPLETE):
+            return
+
+        trial = copy.copy(self._trials[trial_id])
+        trial.datetime_complete = datetime.datetime.fromisoformat(log["datetime_complete"])
+        trial.state = TrialState.COMPLETE
+        trial.values = log["values"]
+
+        self._trials[trial_id] = trial
+
+    def _apply_prune_trial(self, log: Dict[str, Any]) -> None:
+        trial_id = log["trial_id"]
+
+        if not self._validate_trial_and_states(trial_id, log, TrialState.PRUNED):
+            return
+
+        if not self._trial_exists_and_updatable(trial_id, log):
+            return
+
+        trial = copy.copy(self._trials[trial_id])
+        trial.datetime_complete = datetime.datetime.fromisoformat(log["datetime_complete"])
+        trial.state = TrialState.PRUNED
+        trial.values = log["values"]
+
+        self._trials[trial_id] = trial
+
+    def _apply_fail_trial(self, log: Dict[str, Any]) -> None:
+        trial_id = log["trial_id"]
+
+        if not self._validate_trial_and_states(trial_id, log, TrialState.FAIL):
+            return
+
+        trial = copy.copy(self._trials[trial_id])
+        trial.datetime_complete = datetime.datetime.fromisoformat(log["datetime_complete"])
+        trial.state = TrialState.FAIL
+
+        self._trials[trial_id] = trial
+
     def _trial_exists_and_updatable(self, trial_id: int, log: Dict[str, Any]) -> bool:
         if trial_id not in self._trials:
             if self._is_issued_by_this_worker(log):
@@ -662,3 +729,41 @@ class JournalStorageReplayResult:
             return False
         else:
             return True
+
+    def _validate_trial_and_states(
+        self, trial_id: int, log: Dict[str, Any], to_state: TrialState
+    ) -> bool:
+        if trial_id not in self._trials:
+            if self._is_issued_by_this_worker(log):
+                raise KeyError(NOT_FOUND_MSG)
+            return False
+        elif self._trials[trial_id].state.is_finished():
+            if self._is_issued_by_this_worker(log):
+                raise RuntimeError(
+                    "Trial#{} has already finished and can not be updated.".format(
+                        self._trials[trial_id].number
+                    )
+                )
+            return False
+        elif self._trials[trial_id].state == TrialState.RUNNING:
+            if not to_state.is_finished():
+                if self._is_issued_by_this_worker(log):
+                    raise RuntimeError(
+                        f"Trial#{self._trials[trial_id].number} is RUNNING"
+                        " and cannot update to {to_state}."
+                    )
+                else:
+                    return False
+            return True
+        elif self._trials[trial_id].state == TrialState.WAITING:
+            if to_state != TrialState.RUNNING:
+                if self._is_issued_by_this_worker(log):
+                    raise RuntimeError(
+                        f"Trial#{self._trials[trial_id].number} is WAITING"
+                        " and cannot update to {to_state}."
+                    )
+                else:
+                    return False
+            return True
+        else:
+            assert False

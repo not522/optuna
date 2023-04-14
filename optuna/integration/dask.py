@@ -125,7 +125,10 @@ class _OptunaSchedulerExtension:
             "get_trial_id_from_study_id_trial_number",
             "get_trial_number_from_id",
             "get_trial_param",
-            "set_trial_state_values",
+            "run_trial",
+            "complete_trial",
+            "prune_trial",
+            "fail_trial",
             "set_trial_intermediate_value",
             "set_trial_user_attr",
             "set_trial_system_attr",
@@ -299,18 +302,55 @@ class _OptunaSchedulerExtension:
             param_name=param_name,
         )
 
-    def set_trial_state_values(
+    def run_trial(
         self,
         comm: "distributed.comm.tcp.TCP",
         storage_name: str,
         trial_id: int,
-        state: str,
-        values: Optional[Sequence[float]] = None,
-    ) -> bool:
-        return self.get_storage(storage_name).set_trial_state_values(
+        datetime_start: str,
+    ) -> None:
+        self.get_storage(storage_name).run_trial(
+            trial_id=trial_id, datetime_start=datetime.fromisoformat(datetime_start)
+        )
+
+    def complete_trial(
+        self,
+        comm: "distributed.comm.tcp.TCP",
+        storage_name: str,
+        trial_id: int,
+        values: Sequence[float],
+        datetime_complete: str,
+    ) -> None:
+        self.get_storage(storage_name).complete_trial(
             trial_id=trial_id,
-            state=TrialState[state],
             values=values,
+            datetime_complete=datetime.fromisoformat(datetime_complete),
+        )
+
+    def prune_trial(
+        self,
+        comm: "distributed.comm.tcp.TCP",
+        storage_name: str,
+        trial_id: int,
+        values: Optional[Sequence[float]],
+        datetime_complete: str,
+    ) -> None:
+        self.get_storage(storage_name).prune_trial(
+            trial_id=trial_id,
+            values=values,
+            datetime_complete=datetime.fromisoformat(datetime_complete),
+        )
+
+    def fail_trial(
+        self,
+        comm: "distributed.comm.tcp.TCP",
+        storage_name: str,
+        trial_id: int,
+        datetime_complete: str,
+    ) -> None:
+        self.get_storage(storage_name).fail_trial(
+            trial_id=trial_id,
+            datetime_complete=datetime.fromisoformat(datetime_complete),
         )
 
     def set_trial_intermediate_value(
@@ -648,15 +688,42 @@ class DaskStorage(BaseStorage):
             param_name=param_name,
         )
 
-    def set_trial_state_values(
-        self, trial_id: int, state: TrialState, values: Optional[Sequence[float]] = None
-    ) -> bool:
-        return self.client.sync(  # type: ignore[no-untyped-call]
-            self.client.scheduler.optuna_set_trial_state_values,  # type: ignore[union-attr]
+    def run_trial(self, trial_id: int, datetime_start: datetime) -> None:
+        self.client.sync(  # type: ignore[no-untyped-call]
+            self.client.scheduler.optuna_run_trial,  # type: ignore[union-attr]
             storage_name=self.name,
             trial_id=trial_id,
-            state=state.name,
+            datetime_start=datetime_start.isoformat(timespec="microseconds"),
+        )
+
+    def complete_trial(
+        self, trial_id: int, values: Sequence[float], datetime_complete: datetime
+    ) -> None:
+        self.client.sync(  # type: ignore[no-untyped-call]
+            self.client.scheduler.optuna_complete_trial,  # type: ignore[union-attr]
+            storage_name=self.name,
+            trial_id=trial_id,
             values=values,
+            datetime_complete=datetime_complete.isoformat(timespec="microseconds"),
+        )
+
+    def prune_trial(
+        self, trial_id: int, values: Optional[Sequence[float]], datetime_complete: datetime
+    ) -> None:
+        self.client.sync(  # type: ignore[no-untyped-call]
+            self.client.scheduler.optuna_prune_trial,  # type: ignore[union-attr]
+            storage_name=self.name,
+            trial_id=trial_id,
+            values=values,
+            datetime_complete=datetime_complete.isoformat(timespec="microseconds"),
+        )
+
+    def fail_trial(self, trial_id: int, datetime_complete: datetime) -> None:
+        self.client.sync(  # type: ignore[no-untyped-call]
+            self.client.scheduler.optuna_fail_trial,  # type: ignore[union-attr]
+            storage_name=self.name,
+            trial_id=trial_id,
+            datetime_complete=datetime_complete.isoformat(timespec="microseconds"),
         )
 
     def set_trial_intermediate_value(

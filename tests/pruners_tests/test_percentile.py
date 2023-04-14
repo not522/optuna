@@ -1,3 +1,4 @@
+from datetime import datetime
 import math
 from typing import List
 from typing import Tuple
@@ -181,7 +182,7 @@ def test_get_percentile_intermediate_result_over_trials() -> None:
 
         # Set trial states complete because this method ignores incomplete trials.
         for trial_id in trial_ids:
-            _study._storage.set_trial_state_values(trial_id, state=TrialState.COMPLETE)
+            _study._storage.complete_trial(trial_id, [0], datetime.now())
 
         return _study
 

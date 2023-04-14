@@ -1,5 +1,6 @@
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 import os
 import pickle
 from typing import Sequence
@@ -121,7 +122,7 @@ def test_store_infinite_values(input_value: float, expected: float) -> None:
     study_id = storage.create_new_study(directions=[StudyDirection.MINIMIZE])
     trial_id = storage.create_new_trial(study_id)
     storage.set_trial_intermediate_value(trial_id, 1, input_value)
-    storage.set_trial_state_values(trial_id, state=TrialState.COMPLETE, values=(input_value,))
+    storage.complete_trial(trial_id, (input_value,), datetime.now())
     assert storage.get_trial(trial_id).value == expected
     assert storage.get_trial(trial_id).intermediate_values[1] == expected
 

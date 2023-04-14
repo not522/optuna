@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import abc
 import copy
+from datetime import datetime
 from threading import Event
 from threading import Thread
 from types import TracebackType
@@ -12,7 +15,6 @@ import optuna
 from optuna._experimental import experimental_func
 from optuna.storages import BaseStorage
 from optuna.trial import FrozenTrial
-from optuna.trial import TrialState
 
 
 class BaseHeartbeat(metaclass=abc.ABCMeta):
@@ -164,10 +166,13 @@ def fail_stale_trials(study: "optuna.Study") -> None:
     if not is_heartbeat_enabled(storage):
         return
 
-    failed_trial_ids = []
+    failed_trial_ids: list[int] = []
     for trial_id in storage._get_stale_trial_ids(study._study_id):
-        if storage.set_trial_state_values(trial_id, state=TrialState.FAIL):
+        try:
+            storage.fail_trial(trial_id, datetime.now())
             failed_trial_ids.append(trial_id)
+        except RuntimeError:
+            pass
 
     failed_trial_callback = storage.get_failed_trial_callback()
     if failed_trial_callback is not None:

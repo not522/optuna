@@ -1,4 +1,5 @@
 import abc
+from datetime import datetime
 from typing import Any
 from typing import cast
 from typing import Container
@@ -346,34 +347,86 @@ class BaseStorage(abc.ABC):
         return trial.distributions[param_name].to_internal_repr(trial.params[param_name])
 
     @abc.abstractmethod
-    def set_trial_state_values(
-        self, trial_id: int, state: TrialState, values: Optional[Sequence[float]] = None
-    ) -> bool:
-        """Update the state and values of a trial.
-
-        Set return values of an objective function to values argument.
-        If values argument is not :obj:`None`, this method overwrites any existing trial values.
+    def run_trial(self, trial_id: int, datetime_start: datetime) -> None:
+        """Start run of waiting trial.
 
         Args:
             trial_id:
                 ID of the trial.
-            state:
-                New state of the trial.
-            values:
-                Values of the objective function.
+            datetime_start:
+                The time when the trial started.
 
         Returns:
             :obj:`True` if the state is successfully updated.
             :obj:`False` if the state is kept the same.
-            The latter happens when this method tries to update the state of
-            :obj:`~optuna.trial.TrialState.RUNNING` trial to
-            :obj:`~optuna.trial.TrialState.RUNNING`.
 
         Raises:
             :exc:`KeyError`:
                 If no trial with the matching ``trial_id`` exists.
             :exc:`RuntimeError`:
-                If the trial is already finished.
+                If it fails to update the state.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def complete_trial(
+        self, trial_id: int, values: Sequence[float], datetime_complete: datetime
+    ) -> None:
+        """Complete the trial and update the state and values.
+
+        Args:
+            trial_id:
+                ID of the trial.
+            values:
+                Values of the objective function.
+            datetime_complete:
+                The time when the trial finished.
+
+        Raises:
+            :exc:`KeyError`:
+                If no trial with the matching ``trial_id`` exists.
+            :exc:`RuntimeError`:
+                If it fails to update the state.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def prune_trial(
+        self, trial_id: int, values: Optional[Sequence[float]], datetime_complete: datetime
+    ) -> None:
+        """Prune the trial and update the state and values.
+
+        Args:
+            trial_id:
+                ID of the trial.
+            values:
+                Values of the objective function.
+            datetime_complete:
+                The time when the trial finished.
+
+        Raises:
+            :exc:`KeyError`:
+                If no trial with the matching ``trial_id`` exists.
+            :exc:`RuntimeError`:
+                If it fails to update the state.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def fail_trial(self, trial_id: int, datetime_complete: datetime) -> None:
+        """Change the state of the trial to FAIL.
+
+        Args:
+            trial_id:
+                ID of the trial.
+            datetime_complete:
+                The time when the trial finished.
+
+        Raises:
+            :exc:`KeyError`:
+                If no trial with the matching ``trial_id`` exists.
+            :exc:`RuntimeError`:
+                If it fails to update the state.
         """
         raise NotImplementedError
 
@@ -626,3 +679,41 @@ class BaseStorage(abc.ABC):
             raise RuntimeError(
                 "Trial#{} has already finished and can not be updated.".format(trial.number)
             )
+
+    def _validate_updating_trial_state(
+        self, trial_id: int, from_state: TrialState, to_state: TrialState
+    ) -> None:
+        """Check whether a trial state is updatable.
+
+        Args:
+            trial_id:
+                ID of the trial.
+                Only used for an error message.
+            from_state:
+                Trial state before it update.
+            to_state:
+                Trial state after it update.
+
+        Raises:
+            :exc:`RuntimeError`:
+                If the trial is already finished.
+        """
+        if from_state.is_finished():
+            trial = self.get_trial(trial_id)
+            raise RuntimeError(
+                "Trial#{} has already finished and can not be updated.".format(trial.number)
+            )
+        elif from_state == TrialState.RUNNING:
+            if not to_state.is_finished():
+                trial = self.get_trial(trial_id)
+                raise RuntimeError(
+                    f"Trial#{trial.number} is RUNNING and cannot update to {to_state}."
+                )
+        elif from_state == TrialState.WAITING:
+            if to_state != TrialState.RUNNING:
+                trial = self.get_trial(trial_id)
+                raise RuntimeError(
+                    f"Trial#{trial.number} is WAITING and cannot update to {to_state}."
+                )
+        else:
+            assert False

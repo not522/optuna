@@ -393,45 +393,114 @@ def test_get_trial_number_from_id(storage_mode: str) -> None:
 
 
 @pytest.mark.parametrize("storage_mode", STORAGE_MODES)
-def test_set_trial_state_values_for_state(storage_mode: str) -> None:
+def test_run_trial(storage_mode: str) -> None:
     with StorageSupplier(storage_mode) as storage:
         study_id = storage.create_new_study(directions=[StudyDirection.MINIMIZE])
-        trial_ids = [storage.create_new_trial(study_id) for _ in ALL_STATES]
+        trial_id = storage.create_new_trial(study_id)
 
-        for trial_id, state in zip(trial_ids, ALL_STATES):
-            if state == TrialState.WAITING:
-                continue
-            assert storage.get_trial(trial_id).state == TrialState.RUNNING
-            datetime_start_prev = storage.get_trial(trial_id).datetime_start
-            storage.set_trial_state_values(
-                trial_id, state=state, values=(0.0,) if state.is_finished() else None
-            )
-            assert storage.get_trial(trial_id).state == state
-            # Repeated state changes to RUNNING should not trigger further datetime_start changes.
-            if state == TrialState.RUNNING:
-                assert storage.get_trial(trial_id).datetime_start == datetime_start_prev
-            if state.is_finished():
-                assert storage.get_trial(trial_id).datetime_complete is not None
-            else:
-                assert storage.get_trial(trial_id).datetime_complete is None
+        assert storage.get_trial(trial_id).state == TrialState.RUNNING
+        datetime_start_prev = storage.get_trial(trial_id).datetime_start
+        with pytest.raises(RuntimeError):
+            storage.run_trial(trial_id, datetime.now())
+        assert storage.get_trial(trial_id).state == TrialState.RUNNING
+        # Repeated state changes to RUNNING should not trigger further datetime_start changes.
+        assert storage.get_trial(trial_id).datetime_start == datetime_start_prev
+        assert storage.get_trial(trial_id).datetime_complete is None
 
         # Non-existent study.
         with pytest.raises(KeyError):
-            non_existent_trial_id = max(trial_ids) + 1
-            storage.set_trial_state_values(
-                non_existent_trial_id,
-                state=TrialState.COMPLETE,
-            )
+            non_existent_trial_id = trial_id + 1
+            storage.run_trial(non_existent_trial_id, datetime.now())
 
-        for state in ALL_STATES:
-            if not state.is_finished():
-                continue
-            trial_id = storage.create_new_trial(study_id)
-            storage.set_trial_state_values(trial_id, state=state, values=(0.0,))
-            for state2 in ALL_STATES:
-                # Cannot update states of finished trials.
-                with pytest.raises(RuntimeError):
-                    storage.set_trial_state_values(trial_id, state=state2)
+
+@pytest.mark.parametrize("storage_mode", STORAGE_MODES)
+def test_complete_trial(storage_mode: str) -> None:
+    with StorageSupplier(storage_mode) as storage:
+        study_id = storage.create_new_study(directions=[StudyDirection.MINIMIZE])
+        trial_id = storage.create_new_trial(study_id)
+
+        assert storage.get_trial(trial_id).state == TrialState.RUNNING
+        datetime_complete = datetime.now()
+        storage.complete_trial(trial_id, (0.0,), datetime_complete)
+        assert storage.get_trial(trial_id).state == TrialState.COMPLETE
+        assert storage.get_trial(trial_id).datetime_complete == datetime_complete
+
+        # Non-existent study.
+        with pytest.raises(KeyError):
+            non_existent_trial_id = trial_id + 1
+            storage.complete_trial(non_existent_trial_id, [0], datetime.now())
+
+        trial_id = storage.create_new_trial(study_id)
+        storage.complete_trial(trial_id, (0.0,), datetime.now())
+        # Cannot update states of finished trials.
+        with pytest.raises(RuntimeError):
+            storage.run_trial(trial_id, datetime.now())
+        with pytest.raises(RuntimeError):
+            storage.complete_trial(trial_id, [0], datetime.now())
+        with pytest.raises(RuntimeError):
+            storage.prune_trial(trial_id, [0], datetime.now())
+        with pytest.raises(RuntimeError):
+            storage.fail_trial(trial_id, datetime.now())
+
+
+@pytest.mark.parametrize("storage_mode", STORAGE_MODES)
+def test_prune_trial(storage_mode: str) -> None:
+    with StorageSupplier(storage_mode) as storage:
+        study_id = storage.create_new_study(directions=[StudyDirection.MINIMIZE])
+        trial_id = storage.create_new_trial(study_id)
+
+        assert storage.get_trial(trial_id).state == TrialState.RUNNING
+        datetime_complete = datetime.now()
+        storage.prune_trial(trial_id, (0.0,), datetime_complete)
+        assert storage.get_trial(trial_id).state == TrialState.PRUNED
+        assert storage.get_trial(trial_id).datetime_complete == datetime_complete
+
+        # Non-existent study.
+        with pytest.raises(KeyError):
+            non_existent_trial_id = trial_id + 1
+            storage.prune_trial(non_existent_trial_id, [0], datetime.now())
+
+        trial_id = storage.create_new_trial(study_id)
+        storage.prune_trial(trial_id, (0.0,), datetime.now())
+        # Cannot update states of finished trials.
+        with pytest.raises(RuntimeError):
+            storage.run_trial(trial_id, datetime.now())
+        with pytest.raises(RuntimeError):
+            storage.complete_trial(trial_id, [0], datetime.now())
+        with pytest.raises(RuntimeError):
+            storage.prune_trial(trial_id, [0], datetime.now())
+        with pytest.raises(RuntimeError):
+            storage.fail_trial(trial_id, datetime.now())
+
+
+@pytest.mark.parametrize("storage_mode", STORAGE_MODES)
+def test_fail_trial(storage_mode: str) -> None:
+    with StorageSupplier(storage_mode) as storage:
+        study_id = storage.create_new_study(directions=[StudyDirection.MINIMIZE])
+        trial_id = storage.create_new_trial(study_id)
+
+        assert storage.get_trial(trial_id).state == TrialState.RUNNING
+        datetime_complete = datetime.now()
+        storage.fail_trial(trial_id, datetime_complete)
+        assert storage.get_trial(trial_id).state == TrialState.FAIL
+        assert storage.get_trial(trial_id).datetime_complete == datetime_complete
+
+        # Non-existent study.
+        with pytest.raises(KeyError):
+            non_existent_trial_id = trial_id + 1
+            storage.fail_trial(non_existent_trial_id, datetime.now())
+
+        trial_id = storage.create_new_trial(study_id)
+        storage.fail_trial(trial_id, datetime.now())
+        # Cannot update states of finished trials.
+        with pytest.raises(RuntimeError):
+            storage.run_trial(trial_id, datetime.now())
+        with pytest.raises(RuntimeError):
+            storage.complete_trial(trial_id, [0], datetime.now())
+        with pytest.raises(RuntimeError):
+            storage.prune_trial(trial_id, [0], datetime.now())
+        with pytest.raises(RuntimeError):
+            storage.fail_trial(trial_id, datetime.now())
 
 
 @pytest.mark.parametrize("storage_mode", STORAGE_MODES)
@@ -507,7 +576,7 @@ def test_set_trial_param(storage_mode: str) -> None:
                 trial_id_2, "y", 2, CategoricalDistribution(choices=("Meguro", "Shibuya", "Ebisu"))
             )
 
-        storage.set_trial_state_values(trial_id_2, state=TrialState.COMPLETE)
+        storage.complete_trial(trial_id_2, [0], datetime.now())
         # Cannot assign params to finished trial.
         with pytest.raises(RuntimeError):
             storage.set_trial_param(trial_id_2, "y", 2, distribution_y_1)
@@ -531,7 +600,7 @@ def test_set_trial_param(storage_mode: str) -> None:
 
 
 @pytest.mark.parametrize("storage_mode", STORAGE_MODES)
-def test_set_trial_state_values_for_values(storage_mode: str) -> None:
+def test_complete_trial_across_studies(storage_mode: str) -> None:
     with StorageSupplier(storage_mode) as storage:
         # Setup test across multiple studies and trials.
         study_id = storage.create_new_study(directions=[StudyDirection.MINIMIZE])
@@ -540,36 +609,22 @@ def test_set_trial_state_values_for_values(storage_mode: str) -> None:
         trial_id_3 = storage.create_new_trial(
             storage.create_new_study(directions=[StudyDirection.MINIMIZE])
         )
-        trial_id_4 = storage.create_new_trial(study_id)
-        trial_id_5 = storage.create_new_trial(study_id)
 
         # Test setting new value.
-        storage.set_trial_state_values(trial_id_1, state=TrialState.COMPLETE, values=(0.5,))
-        storage.set_trial_state_values(
-            trial_id_3, state=TrialState.COMPLETE, values=(float("inf"),)
-        )
-        storage.set_trial_state_values(
-            trial_id_4, state=TrialState.WAITING, values=(0.1, 0.2, 0.3)
-        )
-        storage.set_trial_state_values(
-            trial_id_5, state=TrialState.WAITING, values=[0.1, 0.2, 0.3]
-        )
+        storage.complete_trial(trial_id_1, (0.5,), datetime.now())
+        storage.complete_trial(trial_id_3, (float("inf"),), datetime.now())
 
         assert storage.get_trial(trial_id_1).value == 0.5
         assert storage.get_trial(trial_id_2).value is None
         assert storage.get_trial(trial_id_3).value == float("inf")
-        assert storage.get_trial(trial_id_4).values == [0.1, 0.2, 0.3]
-        assert storage.get_trial(trial_id_5).values == [0.1, 0.2, 0.3]
 
-        non_existent_trial_id = max(trial_id_1, trial_id_2, trial_id_3, trial_id_4, trial_id_5) + 1
+        non_existent_trial_id = max(trial_id_1, trial_id_2, trial_id_3) + 1
         with pytest.raises(KeyError):
-            storage.set_trial_state_values(
-                non_existent_trial_id, state=TrialState.COMPLETE, values=(1,)
-            )
+            storage.complete_trial(non_existent_trial_id, (1,), datetime.now())
 
         # Cannot change values of finished trials.
         with pytest.raises(RuntimeError):
-            storage.set_trial_state_values(trial_id_1, state=TrialState.COMPLETE, values=(1,))
+            storage.complete_trial(trial_id_1, (1,), datetime.now())
 
 
 @pytest.mark.parametrize("storage_mode", STORAGE_MODES)
@@ -611,7 +666,7 @@ def test_set_trial_intermediate_value(storage_mode: str) -> None:
         with pytest.raises(KeyError):
             storage.set_trial_intermediate_value(non_existent_trial_id, 0, 0.2)
 
-        storage.set_trial_state_values(trial_id_1, state=TrialState.COMPLETE)
+        storage.complete_trial(trial_id_1, [0], datetime.now())
         # Cannot change values of finished trials.
         with pytest.raises(RuntimeError):
             storage.set_trial_intermediate_value(trial_id_1, 0, 0.2)
@@ -665,7 +720,7 @@ def test_set_trial_user_attr(storage_mode: str) -> None:
             storage.set_trial_user_attr(non_existent_trial_id, "key", "value")
 
         # Cannot set attributes of finished trials.
-        storage.set_trial_state_values(trial_id_1, state=TrialState.COMPLETE)
+        storage.complete_trial(trial_id_1, [0], datetime.now())
         with pytest.raises(RuntimeError):
             storage.set_trial_user_attr(trial_id_1, "key", "value")
 
@@ -716,7 +771,7 @@ def test_set_trial_system_attr(storage_mode: str) -> None:
             storage.set_trial_system_attr(non_existent_trial_id, "key", "value")
 
         # Cannot set attributes of finished trials.
-        storage.set_trial_state_values(trial_id_1, state=TrialState.COMPLETE)
+        storage.complete_trial(trial_id_1, [0], datetime.now())
         with pytest.raises(RuntimeError):
             storage.set_trial_system_attr(trial_id_1, "key", "value")
 

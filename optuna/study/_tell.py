@@ -1,4 +1,5 @@
 import copy
+from datetime import datetime
 import math
 from typing import Optional
 from typing import Sequence
@@ -173,9 +174,21 @@ def _tell_with_warning(
         study = pruners._filter_study(study, frozen_trial)
         study.sampler.after_trial(study, frozen_trial, state, values)
     finally:
-        study._storage.set_trial_state_values(frozen_trial._trial_id, state, values)
+        datetime_complete = datetime.now()
 
-    frozen_trial = copy.deepcopy(study._storage.get_trial(frozen_trial._trial_id))
+        if state == TrialState.COMPLETE:
+            assert values is not None
+            study._storage.complete_trial(frozen_trial._trial_id, values, datetime_complete)
+        elif state == TrialState.PRUNED:
+            study._storage.prune_trial(frozen_trial._trial_id, values, datetime_complete)
+        elif state == TrialState.FAIL:
+            study._storage.fail_trial(frozen_trial._trial_id, datetime_complete)
+        else:
+            assert False
+
+    frozen_trial.state = state
+    frozen_trial.values = values
+    frozen_trial.datetime_complete = datetime_complete
 
     if warning_message is not None:
         frozen_trial._system_attrs[STUDY_TELL_WARNING_KEY] = warning_message

@@ -247,32 +247,53 @@ class InMemoryStorage(BaseStorage):
             distribution = trial.distributions[param_name]
             return distribution.to_internal_repr(trial.params[param_name])
 
-    def set_trial_state_values(
-        self, trial_id: int, state: TrialState, values: Optional[Sequence[float]] = None
-    ) -> bool:
+    def run_trial(self, trial_id: int, datetime_start: datetime) -> None:
         with self._lock:
             trial = copy.copy(self._get_trial(trial_id))
-            self.check_trial_is_updatable(trial_id, trial.state)
+            self._validate_updating_trial_state(trial_id, trial.state, TrialState.RUNNING)
 
-            if state == TrialState.RUNNING and trial.state != TrialState.WAITING:
-                return False
+            trial.state = TrialState.RUNNING
+            trial.datetime_start = datetime_start
+            self._set_trial(trial_id, trial)
 
-            trial.state = state
-            if values is not None:
-                trial.values = values
+    def complete_trial(
+        self, trial_id: int, values: Sequence[float], datetime_complete: datetime
+    ) -> None:
+        with self._lock:
+            trial = copy.copy(self._get_trial(trial_id))
+            self._validate_updating_trial_state(trial_id, trial.state, TrialState.COMPLETE)
 
-            if state == TrialState.RUNNING:
-                trial.datetime_start = datetime.now()
+            trial.state = TrialState.COMPLETE
+            trial.values = values
+            trial.datetime_complete = datetime_complete
+            self._set_trial(trial_id, trial)
+            study_id = self._trial_id_to_study_id_and_number[trial_id][0]
+            self._update_cache(trial_id, study_id)
 
-            if state.is_finished():
-                trial.datetime_complete = datetime.now()
-                self._set_trial(trial_id, trial)
-                study_id = self._trial_id_to_study_id_and_number[trial_id][0]
-                self._update_cache(trial_id, study_id)
-            else:
-                self._set_trial(trial_id, trial)
+    def prune_trial(
+        self, trial_id: int, values: Optional[Sequence[float]], datetime_complete: datetime
+    ) -> None:
+        with self._lock:
+            trial = copy.copy(self._get_trial(trial_id))
+            self._validate_updating_trial_state(trial_id, trial.state, TrialState.PRUNED)
 
-            return True
+            trial.state = TrialState.PRUNED
+            trial.values = values
+            trial.datetime_complete = datetime_complete
+            self._set_trial(trial_id, trial)
+            study_id = self._trial_id_to_study_id_and_number[trial_id][0]
+            self._update_cache(trial_id, study_id)
+
+    def fail_trial(self, trial_id: int, datetime_complete: datetime) -> None:
+        with self._lock:
+            trial = copy.copy(self._get_trial(trial_id))
+            self._validate_updating_trial_state(trial_id, trial.state, TrialState.FAIL)
+
+            trial.state = TrialState.FAIL
+            trial.datetime_complete = datetime_complete
+            self._set_trial(trial_id, trial)
+            study_id = self._trial_id_to_study_id_and_number[trial_id][0]
+            self._update_cache(trial_id, study_id)
 
     def _update_cache(self, trial_id: int, study_id: int) -> None:
         trial = self._get_trial(trial_id)

@@ -631,31 +631,48 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
 
         return param_value
 
-    def set_trial_state_values(
-        self, trial_id: int, state: TrialState, values: Optional[Sequence[float]] = None
-    ) -> bool:
-        try:
-            with _create_scoped_session(self.scoped_session) as session:
-                trial = models.TrialModel.find_or_raise_by_id(trial_id, session, for_update=True)
-                self.check_trial_is_updatable(trial_id, trial.state)
+    def run_trial(self, trial_id: int, datetime_start: datetime) -> None:
+        with _create_scoped_session(self.scoped_session) as session:
+            trial = models.TrialModel.find_or_raise_by_id(trial_id, session, for_update=True)
+            self._validate_updating_trial_state(trial_id, trial.state, TrialState.RUNNING)
 
-                if values is not None:
-                    for objective, v in enumerate(values):
-                        self._set_trial_value_without_commit(session, trial_id, objective, v)
+            trial.state = TrialState.RUNNING
+            trial.datetime_start = datetime_start
 
-                if state == TrialState.RUNNING and trial.state != TrialState.WAITING:
-                    return False
+    def complete_trial(
+        self, trial_id: int, values: Sequence[float], datetime_complete: datetime
+    ) -> None:
+        with _create_scoped_session(self.scoped_session) as session:
+            trial = models.TrialModel.find_or_raise_by_id(trial_id, session, for_update=True)
+            self._validate_updating_trial_state(trial_id, trial.state, TrialState.COMPLETE)
 
-                trial.state = state
+            for objective, v in enumerate(values):
+                self._set_trial_value_without_commit(session, trial_id, objective, v)
 
-                if state == TrialState.RUNNING:
-                    trial.datetime_start = datetime.now()
+            trial.state = TrialState.COMPLETE
+            trial.datetime_complete = datetime_complete
 
-                if state.is_finished():
-                    trial.datetime_complete = datetime.now()
-        except sqlalchemy_exc.IntegrityError:
-            return False
-        return True
+    def prune_trial(
+        self, trial_id: int, values: Optional[Sequence[float]], datetime_complete: datetime
+    ) -> None:
+        with _create_scoped_session(self.scoped_session) as session:
+            trial = models.TrialModel.find_or_raise_by_id(trial_id, session, for_update=True)
+            self._validate_updating_trial_state(trial_id, trial.state, TrialState.PRUNED)
+
+            if values is not None:
+                for objective, v in enumerate(values):
+                    self._set_trial_value_without_commit(session, trial_id, objective, v)
+
+            trial.state = TrialState.PRUNED
+            trial.datetime_complete = datetime_complete
+
+    def fail_trial(self, trial_id: int, datetime_complete: datetime) -> None:
+        with _create_scoped_session(self.scoped_session) as session:
+            trial = models.TrialModel.find_or_raise_by_id(trial_id, session, for_update=True)
+            self._validate_updating_trial_state(trial_id, trial.state, TrialState.FAIL)
+
+            trial.state = TrialState.FAIL
+            trial.datetime_complete = datetime_complete
 
     def _set_trial_value_without_commit(
         self, session: "sqlalchemy_orm.Session", trial_id: int, objective: int, value: float
