@@ -3,7 +3,6 @@ name: Tests (Integration)
 on:
   push:
     branches:
-      - master
   pull_request: {}
   schedule:
     - cron: '0 23 * * SUN-THU'
@@ -97,7 +96,7 @@ jobs:
       if:  ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' }}
       run: |
         if [ ${{ matrix.python-version }} == 3.11 ]; then
-          pytest tests -m "integration and not slow" \
+          pytest --durations=0 tests -m "integration" \
             --ignore tests/integration_tests/test_botorch.py \
             --ignore tests/integration_tests/test_catalyst.py \
             --ignore tests/integration_tests/test_catboost.py \
@@ -118,5 +117,5 @@ jobs:
             --ignore tests/importance_tests/test_init.py \
             --ignore tests/samplers_tests/test_samplers.py
         else
-          pytest tests -m "integration and not slow"
+          pytest --durations=0 tests -m "integration"
         fi

@@ -3,7 +3,6 @@ name: Tests
 on:
   push:
     branches:
-      - master
   pull_request: {}
   schedule:
     - cron: '0 23 * * SUN-THU'
@@ -80,6 +79,6 @@ jobs:
     - name: Tests
       if:  ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' }}
       run: |
-        pytest tests -m "not integration and not slow"
+        pytest --durations=0 tests -m "not integration"
       env:
         SQLALCHEMY_WARN_20: 1
