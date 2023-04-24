@@ -3,17 +3,22 @@ name: Speed benchmarks
 on:
   schedule:
     - cron: '0 23 * * SUN-THU'
+  push:
+    branches:
+      - benchmark-4631
 
 jobs:
   speed-benchmarks:
     runs-on: ubuntu-latest
 
     # Not intended for forks.
-    if: github.repository == 'optuna/optuna'
+    # if: github.repository == 'optuna/optuna'
 
     steps:
     - name: Checkout
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     - name: Setup Python3.11
       uses: actions/setup-python@v4
@@ -49,4 +54,9 @@ jobs:
 
     - name: Speed benchmarks
       run: |
-        asv run --strict
+        asv run --strict -q
+
+    - name: Output benchmark results
+      run: |
+        asv show origin/master
+        asv show origin/benchmark-4631
