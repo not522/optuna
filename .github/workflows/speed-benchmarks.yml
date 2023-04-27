@@ -59,4 +59,5 @@ jobs:
     - name: Output benchmark results
       run: |
         asv show origin/master
+        asv show origin/release-v3.1.1
         asv show origin/benchmark-4631
