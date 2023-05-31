@@ -20,6 +20,7 @@ def _calculate(
         optuna.trial.TrialState.COMPLETE,
         optuna.trial.TrialState.WAITING,
         optuna.trial.TrialState.RUNNING,
+        optuna.trial.TrialState.INFEASIBLE,
     ]
 
     if include_pruned:

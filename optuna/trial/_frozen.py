@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 from typing import Any
 from typing import cast
@@ -25,6 +27,8 @@ from optuna.trial._state import TrialState
 
 _logger = logging.get_logger(__name__)
 _suggest_deprecated_msg = "Use suggest_float{args} instead."
+
+_CONSTRAINTS_KEY = "constraints"
 
 
 class FrozenTrial(BaseTrial):
@@ -147,6 +151,7 @@ class FrozenTrial(BaseTrial):
         user_attrs: Dict[str, Any],
         system_attrs: Dict[str, Any],
         intermediate_values: Dict[int, float],
+        constraints: list[float],
         trial_id: int,
         *,
         values: Optional[Sequence[float]] = None,
@@ -166,6 +171,7 @@ class FrozenTrial(BaseTrial):
         self._user_attrs = user_attrs
         self._system_attrs = system_attrs
         self.intermediate_values = intermediate_values
+        self._system_attrs[_CONSTRAINTS_KEY] = constraints
         self._distributions = distributions
         self._trial_id = trial_id
 
@@ -468,6 +474,10 @@ class FrozenTrial(BaseTrial):
             return self.datetime_complete - self.datetime_start
         else:
             return None
+
+    @property
+    def constraints(self) -> list[float]:
+        return self._system_attrs.get(_CONSTRAINTS_KEY, [])
 
 
 def create_trial(

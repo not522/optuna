@@ -27,6 +27,8 @@ from optuna.trial._base import BaseTrial
 _logger = logging.get_logger(__name__)
 _suggest_deprecated_msg = "Use suggest_float{args} instead."
 
+_CONSTRAINTS_KEY = "constraints"
+
 
 class Trial(BaseTrial):
     """A trial is a process of evaluating an objective function.
@@ -532,6 +534,13 @@ class Trial(BaseTrial):
 
         trial = self._get_latest_trial()
         return self.study.pruner.prune(self.study, trial)
+
+    def report_constraints(self, constraints: list[float]) -> None:
+        self._storage.set_trial_system_attr(
+            self._trial_id,
+            _CONSTRAINTS_KEY,
+            constraints,
+        )
 
     def set_user_attr(self, key: str, value: Any) -> None:
         """Set user attributes to the trial.

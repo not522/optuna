@@ -52,9 +52,9 @@ class _GroupDecomposedSearchSpace:
 
         states_of_interest: Tuple[TrialState, ...]
         if self._include_pruned:
-            states_of_interest = (TrialState.COMPLETE, TrialState.PRUNED)
+            states_of_interest = (TrialState.COMPLETE, TrialState.PRUNED, TrialState.INFEASIBLE)
         else:
-            states_of_interest = (TrialState.COMPLETE,)
+            states_of_interest = (TrialState.COMPLETE, TrialState.INFEASIBLE)
 
         for trial in study._get_trials(deepcopy=False, states=states_of_interest, use_cache=False):
             self._search_space.add_distributions(trial.distributions)

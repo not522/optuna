@@ -14,6 +14,8 @@ class TrialState(enum.IntEnum):
         PRUNED:
             The :class:`~optuna.trial.Trial` has been pruned with
             :class:`~optuna.exceptions.TrialPruned`.
+        INFEASIBLE:
+            The :class:`~optuna.trial.Trial` has been finished but violates one or more constraints.
         FAIL:
             The :class:`~optuna.trial.Trial` has failed due to an uncaught error.
     """
@@ -23,6 +25,7 @@ class TrialState(enum.IntEnum):
     PRUNED = 2
     FAIL = 3
     WAITING = 4
+    INFEASIBLE = 5
 
     def __repr__(self) -> str:
         return str(self)

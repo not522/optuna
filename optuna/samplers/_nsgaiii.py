@@ -15,7 +15,6 @@ import optuna
 from optuna._experimental import experimental_class
 from optuna.distributions import BaseDistribution
 from optuna.exceptions import ExperimentalWarning
-from optuna.samplers._base import _process_constraints_after_trial
 from optuna.samplers._base import BaseSampler
 from optuna.samplers._random import RandomSampler
 from optuna.samplers._search_space import IntersectionSearchSpace
@@ -84,7 +83,6 @@ class NSGAIIISampler(BaseSampler):
         crossover_prob: float = 0.9,
         swapping_prob: float = 0.5,
         seed: int | None = None,
-        constraints_func: Callable[[FrozenTrial], Sequence[float]] | None = None,
         reference_points: np.ndarray | None = None,
         dividing_parameter: int = 3,
     ) -> None:
@@ -106,13 +104,6 @@ class NSGAIIISampler(BaseSampler):
 
         if not (0.0 <= swapping_prob <= 1.0):
             raise ValueError("`swapping_prob` must be a float value within the range [0.0, 1.0].")
-
-        if constraints_func is not None:
-            warnings.warn(
-                "The constraints_func option is an experimental feature."
-                " The interface can change in the future.",
-                ExperimentalWarning,
-            )
 
         if crossover is None:
             crossover = UniformCrossover(swapping_prob)
@@ -137,7 +128,6 @@ class NSGAIIISampler(BaseSampler):
         self._swapping_prob = swapping_prob
         self._random_sampler = RandomSampler(seed=seed)
         self._rng = np.random.RandomState(seed)
-        self._constraints_func = constraints_func
         self._reference_points = reference_points
         self._dividing_parameter = dividing_parameter
         self._search_space = IntersectionSearchSpace()
@@ -172,8 +162,6 @@ class NSGAIIISampler(BaseSampler):
         generation = parent_generation + 1
         study._storage.set_trial_system_attr(trial_id, _GENERATION_KEY, generation)
 
-        dominates_func = _dominates if self._constraints_func is None else _constrained_dominates
-
         if parent_generation >= 0:
             # We choose a child based on the specified crossover method.
             if self._rng.rand() < self._crossover_prob:
@@ -184,7 +172,7 @@ class NSGAIIISampler(BaseSampler):
                     search_space,
                     self._rng,
                     self._swapping_prob,
-                    dominates_func,
+                    _constrained_dominates,
                 )
             else:
                 parent_population_size = len(parent_population)
@@ -300,9 +288,7 @@ class NSGAIIISampler(BaseSampler):
         self, study: Study, population: list[FrozenTrial]
     ) -> list[FrozenTrial]:
         elite_population: list[FrozenTrial] = []
-        population_per_rank = _fast_non_dominated_sort(
-            population, study.directions, self._constraints_func
-        )
+        population_per_rank = _fast_non_dominated_sort(population, study.directions)
         for population in population_per_rank:
             if len(elite_population) + len(population) < self._population_size:
                 elite_population.extend(population)
@@ -351,9 +337,7 @@ class NSGAIIISampler(BaseSampler):
         state: TrialState,
         values: Sequence[float] | None,
     ) -> None:
-        assert state in [TrialState.COMPLETE, TrialState.FAIL, TrialState.PRUNED]
-        if self._constraints_func is not None:
-            _process_constraints_after_trial(self._constraints_func, study, trial, state)
+        assert TrialState.is_finished(state)
         self._random_sampler.after_trial(study, trial, state, values)
 
 

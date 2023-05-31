@@ -54,7 +54,7 @@ def _check_state_and_values(
                 "Values were told. Values cannot be specified when state is "
                 "TrialState.PRUNED or TrialState.FAIL."
             )
-    elif state is not None:
+    elif state is not None and not state.is_finished():
         raise ValueError(f"Cannot tell with state {state}.")
 
 
@@ -151,7 +151,10 @@ def _tell_with_warning(
             values_conversion_failure_message = _check_values_are_feasible(study, values)
 
         if values_conversion_failure_message is None:
-            state = TrialState.COMPLETE
+            if any(constraint < 0 for constraint in trial.constraints):
+                state = TrialState.INFEASIBLE
+            else:
+                state = TrialState.COMPLETE
         else:
             state = TrialState.FAIL
             values = None

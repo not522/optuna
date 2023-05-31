@@ -83,31 +83,6 @@ class NSGAIISampler(BaseSampler):
 
         seed:
             Seed for random number generator.
-
-        constraints_func:
-            An optional function that computes the objective constraints. It must take a
-            :class:`~optuna.trial.FrozenTrial` and return the constraints. The return value must
-            be a sequence of :obj:`float` s. A value strictly larger than 0 means that a
-            constraints is violated. A value equal to or smaller than 0 is considered feasible.
-            If ``constraints_func`` returns more than one value for a trial, that trial is
-            considered feasible if and only if all values are equal to 0 or smaller.
-
-            The ``constraints_func`` will be evaluated after each successful trial.
-            The function won't be called when trials fail or they are pruned, but this behavior is
-            subject to change in the future releases.
-
-            The constraints are handled by the constrained domination. A trial x is said to
-            constrained-dominate a trial y, if any of the following conditions is true:
-
-            1. Trial x is feasible and trial y is not.
-            2. Trial x and y are both infeasible, but trial x has a smaller overall violation.
-            3. Trial x and y are feasible and trial x dominates trial y.
-
-            .. note::
-                Added in v2.5.0 as an experimental feature. The interface may change in newer
-                versions without prior notice. See
-                https://github.com/optuna/optuna/releases/tag/v2.5.0.
-
     """
 
     def __init__(
@@ -119,7 +94,6 @@ class NSGAIISampler(BaseSampler):
         crossover_prob: float = 0.9,
         swapping_prob: float = 0.5,
         seed: Optional[int] = None,
-        constraints_func: Optional[Callable[[FrozenTrial], Sequence[float]]] = None,
     ) -> None:
         # TODO(ohta): Reconsider the default value of each parameter.
 
@@ -139,13 +113,6 @@ class NSGAIISampler(BaseSampler):
 
         if not (0.0 <= swapping_prob <= 1.0):
             raise ValueError("`swapping_prob` must be a float value within the range [0.0, 1.0].")
-
-        if constraints_func is not None:
-            warnings.warn(
-                "The constraints_func option is an experimental feature."
-                " The interface can change in the future.",
-                ExperimentalWarning,
-            )
 
         if crossover is None:
             crossover = UniformCrossover(swapping_prob)
@@ -170,7 +137,6 @@ class NSGAIISampler(BaseSampler):
         self._swapping_prob = swapping_prob
         self._random_sampler = RandomSampler(seed=seed)
         self._rng = np.random.RandomState(seed)
-        self._constraints_func = constraints_func
         self._search_space = IntersectionSearchSpace()
 
     def reseed_rng(self) -> None:
@@ -203,8 +169,6 @@ class NSGAIISampler(BaseSampler):
         generation = parent_generation + 1
         study._storage.set_trial_system_attr(trial_id, _GENERATION_KEY, generation)
 
-        dominates_func = _dominates if self._constraints_func is None else _constrained_dominates
-
         if parent_generation >= 0:
             # We choose a child based on the specified crossover method.
             if self._rng.rand() < self._crossover_prob:
@@ -215,7 +179,7 @@ class NSGAIISampler(BaseSampler):
                     search_space,
                     self._rng,
                     self._swapping_prob,
-                    dominates_func,
+                    _constrained_dominates,
                 )
             else:
                 parent_population_size = len(parent_population)
@@ -331,9 +295,7 @@ class NSGAIISampler(BaseSampler):
         self, study: Study, population: List[FrozenTrial]
     ) -> List[FrozenTrial]:
         elite_population: List[FrozenTrial] = []
-        population_per_rank = _fast_non_dominated_sort(
-            population, study.directions, self._constraints_func
-        )
+        population_per_rank = _fast_non_dominated_sort(population, study.directions)
         for population in population_per_rank:
             if len(elite_population) + len(population) < self._population_size:
                 elite_population.extend(population)
@@ -353,8 +315,6 @@ class NSGAIISampler(BaseSampler):
         values: Optional[Sequence[float]],
     ) -> None:
         assert state in [TrialState.COMPLETE, TrialState.FAIL, TrialState.PRUNED]
-        if self._constraints_func is not None:
-            _process_constraints_after_trial(self._constraints_func, study, trial, state)
         self._random_sampler.after_trial(study, trial, state, values)
 
 
@@ -428,83 +388,32 @@ def _constrained_dominates(
     3) Trial x and y are feasible and trial x dominates trial y.
     """
 
-    constraints0 = trial0.system_attrs.get(_CONSTRAINTS_KEY)
-    constraints1 = trial1.system_attrs.get(_CONSTRAINTS_KEY)
-
-    if constraints0 is None:
-        warnings.warn(
-            f"Trial {trial0.number} does not have constraint values."
-            " It will be dominated by the other trials."
-        )
-
-    if constraints1 is None:
-        warnings.warn(
-            f"Trial {trial1.number} does not have constraint values."
-            " It will be dominated by the other trials."
-        )
-
-    if constraints0 is None and constraints1 is None:
-        # Neither Trial x nor y has constraints values
-        return _dominates(trial0, trial1, directions)
-
-    if constraints0 is not None and constraints1 is None:
-        # Trial x has constraint values, but y doesn't.
-        return True
-
-    if constraints0 is None and constraints1 is not None:
-        # If Trial y has constraint values, but x doesn't.
-        return False
-
-    assert isinstance(constraints0, (list, tuple))
-    assert isinstance(constraints1, (list, tuple))
-
-    if len(constraints0) != len(constraints1):
-        raise ValueError("Trials with different numbers of constraints cannot be compared.")
-
-    if trial0.state != TrialState.COMPLETE:
-        return False
-
-    if trial1.state != TrialState.COMPLETE:
-        return True
-
-    satisfy_constraints0 = all(v <= 0 for v in constraints0)
-    satisfy_constraints1 = all(v <= 0 for v in constraints1)
-
-    if satisfy_constraints0 and satisfy_constraints1:
-        # Both trials satisfy the constraints.
-        return _dominates(trial0, trial1, directions)
-
-    if satisfy_constraints0:
-        # trial0 satisfies the constraints, but trial1 violates them.
-        return True
-
-    if satisfy_constraints1:
-        # trial1 satisfies the constraints, but trial0 violates them.
-        return False
-
-    # Both trials violate the constraints.
-    violation0 = sum(v for v in constraints0 if v > 0)
-    violation1 = sum(v for v in constraints1 if v > 0)
-    return violation0 < violation1
+    if trial0.state == TrialState.COMPLETE:
+        if trial1.state == TrialState.COMPLETE:
+            return _dominates(trial0, trial1, directions)
+        elif trial1.state == TrialState.INFEASIBLE:
+            return True
+        else:
+            assert False
+    elif trial0.state == TrialState.INFEASIBLE:
+        if trial1.state == TrialState.COMPLETE:
+            return False
+        elif trial1.state == TrialState.INFEASIBLE:
+            violation0 = sum(v for v in trial0.constraints if v > 0)
+            violation1 = sum(v for v in trial1.constraints if v > 0)
+            return violation0 < violation1
+        else:
+            assert False
 
 
 def _fast_non_dominated_sort(
     population: List[FrozenTrial],
     directions: List[optuna.study.StudyDirection],
-    constraints_func: Optional[Callable[[FrozenTrial], Sequence[float]]] = None,
 ) -> List[List[FrozenTrial]]:
-    if constraints_func is not None:
-        for _trial in population:
-            _constraints = _trial.system_attrs.get(_CONSTRAINTS_KEY)
-            if _constraints is None:
-                continue
-            if np.any(np.isnan(np.array(_constraints))):
-                raise ValueError("NaN is not acceptable as constraint value.")
-
     dominated_count: DefaultDict[int, int] = defaultdict(int)
     dominates_list = defaultdict(list)
 
-    dominates = _dominates if constraints_func is None else _constrained_dominates
+    dominates = _constrained_dominates
 
     for p, q in itertools.combinations(population, 2):
         if dominates(p, q, directions):

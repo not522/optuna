@@ -17,8 +17,6 @@ from optuna._hypervolume.hssp import _solve_hssp
 from optuna.distributions import BaseDistribution
 from optuna.exceptions import ExperimentalWarning
 from optuna.logging import get_logger
-from optuna.samplers._base import _CONSTRAINTS_KEY
-from optuna.samplers._base import _process_constraints_after_trial
 from optuna.samplers._base import BaseSampler
 from optuna.samplers._random import RandomSampler
 from optuna.samplers._tpe.parzen_estimator import _ParzenEstimator
@@ -211,23 +209,6 @@ class TPESampler(BaseSampler):
                 Added in v2.8.0 as an experimental feature. The interface may change in newer
                 versions without prior notice. See
                 https://github.com/optuna/optuna/releases/tag/v2.8.0.
-        constraints_func:
-            An optional function that computes the objective constraints. It must take a
-            :class:`~optuna.trial.FrozenTrial` and return the constraints. The return value must
-            be a sequence of :obj:`float` s. A value strictly larger than 0 means that a
-            constraints is violated. A value equal to or smaller than 0 is considered feasible.
-            If ``constraints_func`` returns more than one value for a trial, that trial is
-            considered feasible if and only if all values are equal to 0 or smaller.
-
-            The ``constraints_func`` will be evaluated after each successful trial.
-            The function won't be called when trials fail or they are pruned, but this behavior is
-            subject to change in the future releases.
-
-            .. note::
-                Added in v3.0.0 as an experimental feature. The interface may change in newer
-                versions without prior notice.
-                See https://github.com/optuna/optuna/releases/tag/v3.0.0.
-
     """
 
     def __init__(
@@ -246,7 +227,6 @@ class TPESampler(BaseSampler):
         group: bool = False,
         warn_independent_sampling: bool = True,
         constant_liar: bool = False,
-        constraints_func: Optional[Callable[[FrozenTrial], Sequence[float]]] = None,
     ) -> None:
         self._parzen_estimator_parameters = _ParzenEstimatorParameters(
             consider_prior,
@@ -272,7 +252,6 @@ class TPESampler(BaseSampler):
         self._search_space_group: Optional[_SearchSpaceGroup] = None
         self._search_space = IntersectionSearchSpace(include_pruned=True)
         self._constant_liar = constant_liar
-        self._constraints_func = constraints_func
 
         if multivariate:
             warnings.warn(
@@ -296,13 +275,6 @@ class TPESampler(BaseSampler):
         if constant_liar:
             warnings.warn(
                 "``constant_liar`` option is an experimental feature."
-                " The interface can change in the future.",
-                ExperimentalWarning,
-            )
-
-        if constraints_func is not None:
-            warnings.warn(
-                "The ``constraints_func`` option is an experimental feature."
                 " The interface can change in the future.",
                 ExperimentalWarning,
             )
@@ -380,7 +352,6 @@ class TPESampler(BaseSampler):
             study,
             param_names,
             self._constant_liar,
-            self._constraints_func is not None,
         )
 
         # If the number of samples is insufficient, we run random trial.
@@ -431,7 +402,6 @@ class TPESampler(BaseSampler):
             study,
             [param_name],
             self._constant_liar,
-            self._constraints_func is not None,
         )
 
         n = sum(s < float("inf") for s, v in scores)  # Ignore running trials.
@@ -553,8 +523,6 @@ class TPESampler(BaseSampler):
         values: Optional[Sequence[float]],
     ) -> None:
         assert state in [TrialState.COMPLETE, TrialState.FAIL, TrialState.PRUNED]
-        if self._constraints_func is not None:
-            _process_constraints_after_trial(self._constraints_func, study, trial, state)
         self._random_sampler.after_trial(study, trial, state, values)
 
 
@@ -577,11 +545,10 @@ def _get_observation_pairs(
     study: Study,
     param_names: List[str],
     constant_liar: bool = False,  # TODO(hvy): Remove default value and fix unit tests.
-    constraints_enabled: bool = False,
 ) -> Tuple[
     Dict[str, List[Optional[float]]],
     List[Tuple[float, List[float]]],
-    Optional[List[float]],
+    List[float],
 ]:
     """Get observation pairs from the study.
 
@@ -599,10 +566,6 @@ def _get_observation_pairs(
     The second element of an observation pair is used to rank observations in
     ``_split_observation_pairs`` method (i.e., observations are sorted lexicographically by
     ``(-step, value)``).
-
-    When ``constraints_enabled`` is :obj:`True`, 1-dimensional violation values are returned
-    as the third element (:obj:`None` otherwise). Each value is a float of 0 or greater and a
-    trial is feasible if and only if its violation score is 0.
     """
 
     signs = []
@@ -620,7 +583,7 @@ def _get_observation_pairs(
 
     scores = []
     values: Dict[str, List[Optional[float]]] = {param_name: [] for param_name in param_names}
-    violations: Optional[List[float]] = [] if constraints_enabled else None
+    violations: List[float] = []
     for trial in study._get_trials(deepcopy=False, states=states, use_cache=not constant_liar):
         # We extract score from the trial.
         if trial.state is TrialState.COMPLETE:
@@ -659,22 +622,12 @@ def _get_observation_pairs(
                 param_value = None
             values[param_name].append(param_value)
 
-        if constraints_enabled:
-            assert violations is not None
-            if trial.state != TrialState.RUNNING:
-                constraint = trial.system_attrs.get(_CONSTRAINTS_KEY)
-                if constraint is None:
-                    warnings.warn(
-                        f"Trial {trial.number} does not have constraint values."
-                        " It will be treated as a lower priority than other trials."
-                    )
-                    violation = float("inf")
-                else:
-                    # Violation values of infeasible dimensions are summed up.
-                    violation = sum(v for v in constraint if v > 0)
-                violations.append(violation)
-            else:
-                violations.append(float("inf"))
+        if trial.state == TrialState.INFEASIBLE:
+            violations.append(sum(v for v in trial.constraints if v > 0))
+        elif trial.state != TrialState.RUNNING:
+            violations.append(0)
+        else:
+            violations.append(float("inf"))
 
     return values, scores, violations
 
@@ -682,33 +635,38 @@ def _get_observation_pairs(
 def _split_observation_pairs(
     loss_vals: List[Tuple[float, List[float]]],
     n_below: int,
-    violations: Optional[List[float]],
+    violations: List[float],
 ) -> Tuple[np.ndarray, np.ndarray]:
     # When constrains is not None, trials are split into below and above
     # according to the following rules.
     # 1. Feasible trials are better than infeasible trials.
     # 2. Infeasible trials are sorted by sum of how much they violate each constraint.
     # 3. Feasible trials are sorted by loss_vals.
-    if violations is not None:
-        violation_1d = np.array(violations, dtype=float)
-        idx = violation_1d.argsort(kind="stable")
-        if n_below >= len(idx) or violation_1d[idx[n_below]] > 0:
-            # Below is filled by all feasible trials and trials with smaller violation values.
-            indices_below = idx[:n_below]
-            indices_above = idx[n_below:]
-        else:
-            # All trials in below are feasible.
-            # Feasible trials with smaller loss_vals are selected.
-            (feasible_idx,) = (violation_1d == 0).nonzero()
-            (infeasible_idx,) = (violation_1d > 0).nonzero()
-            assert len(feasible_idx) >= n_below
-            feasible_below, feasible_above = _split_observation_pairs(
-                [loss_vals[i] for i in feasible_idx], n_below, None
-            )
-            indices_below = feasible_idx[feasible_below]
-            indices_above = np.concatenate([feasible_idx[feasible_above], infeasible_idx])
-        # `np.sort` is used to keep chronological order.
-        return np.sort(indices_below), np.sort(indices_above)
+    violation_1d = np.array(violations, dtype=float)
+    idx = violation_1d.argsort(kind="stable")
+    if n_below >= len(idx) or violation_1d[idx[n_below]] > 0:
+        # Below is filled by all feasible trials and trials with smaller violation values.
+        indices_below = idx[:n_below]
+        indices_above = idx[n_below:]
+    else:
+        # All trials in below are feasible.
+        # Feasible trials with smaller loss_vals are selected.
+        (feasible_idx,) = (violation_1d == 0).nonzero()
+        (infeasible_idx,) = (violation_1d > 0).nonzero()
+        assert len(feasible_idx) >= n_below
+        feasible_below, feasible_above = _split_observation_pairs_without_constraints(
+            [loss_vals[i] for i in feasible_idx], n_below
+        )
+        indices_below = feasible_idx[feasible_below]
+        indices_above = np.concatenate([feasible_idx[feasible_above], infeasible_idx])
+    # `np.sort` is used to keep chronological order.
+    return np.sort(indices_below), np.sort(indices_above)
+
+
+def _split_observation_pairs_without_constraints(
+    loss_vals: List[Tuple[float, List[float]]],
+    n_below: int,
+) -> Tuple[np.ndarray, np.ndarray]:
 
     n_objectives = 1
     if len(loss_vals) > 0:

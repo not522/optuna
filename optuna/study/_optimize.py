@@ -240,6 +240,9 @@ def _run_trial(
                 )
             else:
                 assert False, "Should not reach."
+        elif frozen_trial.state == TrialState.INFEASIBLE:
+            # TODO(not522): Add logging message.
+            pass
         else:
             assert False, "Should not reach."
 

@@ -110,6 +110,7 @@ def _get_timeline_plot(info: _TimelineInfo) -> "go.Figure":
         "COMPLETE": "blue",
         "FAIL": "red",
         "PRUNED": "orange",
+        "INFEASIBLE": "yellow",
         "RUNNING": "green",
         "WAITING": "gray",
     }
