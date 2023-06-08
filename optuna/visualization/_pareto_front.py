@@ -253,38 +253,20 @@ def _get_pareto_front_info(
             "Use either `targets` or `axis_order`."
         )
 
-    if constraints_func is not None:
-        warnings.warn(
-            "``constraints_func`` argument is an experimental feature."
-            " The interface can change in the future.",
-            ExperimentalWarning,
-        )
-        feasible_trials = []
-        infeasible_trials = []
-        for trial in study.get_trials(deepcopy=False, states=(TrialState.COMPLETE,)):
-            if all(map(lambda x: x <= 0.0, constraints_func(trial))):
-                feasible_trials.append(trial)
-            else:
-                infeasible_trials.append(trial)
-        best_trials = _get_pareto_front_trials_by_trials(feasible_trials, study.directions)
-        if include_dominated_trials:
-            non_best_trials = _get_non_pareto_front_trials(feasible_trials, best_trials)
-        else:
-            non_best_trials = []
-
-        if len(best_trials) == 0:
-            _logger.warning("Your study does not have any completed and feasible trials.")
+    feasible_trials = []
+    infeasible_trials = []
+    for trial in study.get_trials(deepcopy=False, states=(TrialState.COMPLETE,)):
+        feasible_trials.append(trial)
+    for trial in study.get_trials(deepcopy=False, states=(TrialState.INFEASIBLE,)):
+        infeasible_trials.append(trial)
+    best_trials = _get_pareto_front_trials_by_trials(feasible_trials, study.directions)
+    if include_dominated_trials:
+        non_best_trials = _get_non_pareto_front_trials(feasible_trials, best_trials)
     else:
-        all_trials = study.get_trials(deepcopy=False, states=(TrialState.COMPLETE,))
-        best_trials = _get_pareto_front_trials_by_trials(all_trials, study.directions)
-        if len(best_trials) == 0:
-            _logger.warning("Your study does not have any completed trials.")
+        non_best_trials = []
 
-        if include_dominated_trials:
-            non_best_trials = _get_non_pareto_front_trials(all_trials, best_trials)
-        else:
-            non_best_trials = []
-        infeasible_trials = []
+    if len(best_trials) == 0:
+        _logger.warning("Your study does not have any completed and feasible trials.")
 
     _targets = targets
     if _targets is None:
@@ -382,7 +364,7 @@ def _get_pareto_front_info(
         infeasible_trials_with_values=infeasible_trials_with_values,
         axis_order=axis_order,
         include_dominated_trials=include_dominated_trials,
-        has_constraints_func=constraints_func is not None,
+        has_constraints_func=len(infeasible_trials) > 0,
     )
 
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 from typing import Any
 from typing import cast
@@ -25,6 +27,8 @@ from optuna.trial._state import TrialState
 
 _logger = logging.get_logger(__name__)
 _suggest_deprecated_msg = "Use suggest_float{args} instead."
+
+_CONSTRAINTS_KEY = "constraints"
 
 
 class FrozenTrial(BaseTrial):
@@ -147,6 +151,7 @@ class FrozenTrial(BaseTrial):
         user_attrs: Dict[str, Any],
         system_attrs: Dict[str, Any],
         intermediate_values: Dict[int, float],
+        # constraints: Sequence[float],
         trial_id: int,
         *,
         values: Optional[Sequence[float]] = None,
@@ -166,6 +171,7 @@ class FrozenTrial(BaseTrial):
         self._user_attrs = user_attrs
         self._system_attrs = system_attrs
         self.intermediate_values = intermediate_values
+        # self._system_attrs[_CONSTRAINTS_KEY] = constraints
         self._distributions = distributions
         self._trial_id = trial_id
 
@@ -293,6 +299,9 @@ class FrozenTrial(BaseTrial):
         """
 
         return False
+
+    def report_constraints(self, constraints: Sequence[float]) -> None:
+        pass
 
     def set_user_attr(self, key: str, value: Any) -> None:
         self._user_attrs[key] = value
@@ -469,6 +478,10 @@ class FrozenTrial(BaseTrial):
         else:
             return None
 
+    @property
+    def constraints(self) -> list[float]:
+        return self._system_attrs.get(_CONSTRAINTS_KEY, [])
+
 
 def create_trial(
     *,
@@ -480,6 +493,7 @@ def create_trial(
     user_attrs: Optional[Dict[str, Any]] = None,
     system_attrs: Optional[Dict[str, Any]] = None,
     intermediate_values: Optional[Dict[int, float]] = None,
+    # constraints: Sequence[float] | None = None,
 ) -> FrozenTrial:
     """Create a new :class:`~optuna.trial.FrozenTrial`.
 
@@ -557,6 +571,7 @@ def create_trial(
     user_attrs = user_attrs or {}
     system_attrs = system_attrs or {}
     intermediate_values = intermediate_values or {}
+    # constraints = constraints or []
 
     if state == TrialState.WAITING:
         datetime_start = None
@@ -581,6 +596,7 @@ def create_trial(
         user_attrs=user_attrs,
         system_attrs=system_attrs,
         intermediate_values=intermediate_values,
+        # constraints=constraints,
     )
 
     trial._validate()

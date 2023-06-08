@@ -95,6 +95,10 @@ class BaseTrial(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def report_constraints(self, constraints: Sequence[float]) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def set_user_attr(self, key: str, value: Any) -> None:
         raise NotImplementedError
 

@@ -18,6 +18,7 @@ def _calculate(
 ) -> Tuple[Dict[str, BaseDistribution] | None, int]:
     states_of_interest = [
         optuna.trial.TrialState.COMPLETE,
+        optuna.trial.TrialState.INFEASIBLE,
         optuna.trial.TrialState.WAITING,
         optuna.trial.TrialState.RUNNING,
     ]

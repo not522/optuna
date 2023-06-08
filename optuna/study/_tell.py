@@ -133,6 +133,8 @@ def _tell_with_warning(
         values_conversion_failure_message = _check_values_are_feasible(study, values)
         if values_conversion_failure_message is not None:
             raise ValueError(values_conversion_failure_message)
+        if any(constraint > 0 for constraint in frozen_trial.constraints):
+            state = TrialState.INFEASIBLE
     elif state == TrialState.PRUNED:
         # Register the last intermediate value if present as the value of the trial.
         # TODO(hvy): Whether a pruned trials should have an actual value can be discussed.
@@ -172,6 +174,9 @@ def _tell_with_warning(
         # Sampler defined trial post-processing.
         study = pruners._filter_study(study, frozen_trial)
         study.sampler.after_trial(study, frozen_trial, state, values)
+        frozen_trial = _get_frozen_trial(study, trial)
+        if any(constraint > 0 for constraint in frozen_trial.constraints):
+            state = TrialState.INFEASIBLE
     finally:
         study._storage.set_trial_state_values(frozen_trial._trial_id, state, values)
 

@@ -23,6 +23,7 @@ class TrialState(enum.IntEnum):
     PRUNED = 2
     FAIL = 3
     WAITING = 4
+    INFEASIBLE = 5
 
     def __repr__(self) -> str:
         return str(self)

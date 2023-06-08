@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 import functools
 import pickle
@@ -34,6 +36,8 @@ if TYPE_CHECKING:
 _suggest_deprecated_msg = "Use suggest_float{args} instead."
 
 _g_pg: Optional["ProcessGroup"] = None
+
+_CONSTRAINTS_KEY = "constraints"
 
 
 def broadcast_properties(f: "Callable[_P, _T]") -> "Callable[_P, _T]":
@@ -255,6 +259,22 @@ class TorchDistributedTrial(optuna.trial.BaseTrial):
         return self._call_and_communicate(func, torch.uint8)
 
     @broadcast_properties
+    def report_constraints(self, constraints: Sequence[float]) -> None:
+        err = None
+        if dist.get_rank(self._group) == 0:
+            try:
+                assert self._delegate is not None
+                self._delegate.report_constraints(constraints)
+            except Exception as e:
+                err = e
+            err = self._broadcast(err)
+        else:
+            err = self._broadcast(err)
+
+        if err is not None:
+            raise err
+
+    @broadcast_properties
     def set_user_attr(self, key: str, value: Any) -> None:
         err = None
         if dist.get_rank(self._group) == 0:
@@ -314,6 +334,10 @@ class TorchDistributedTrial(optuna.trial.BaseTrial):
     @property
     def datetime_start(self) -> Optional[datetime]:
         return self._datetime_start
+
+    @property
+    def constraints(self) -> list[float]:
+        return self.system_attrs.get(_CONSTRAINTS_KEY, [])
 
     def _call_and_communicate(self, func: Callable, dtype: "torch.dtype") -> Any:
         buffer = torch.empty(1, dtype=dtype)

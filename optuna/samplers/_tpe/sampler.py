@@ -614,13 +614,13 @@ def _get_observation_pairs(
 
     states: Container[TrialState]
     if constant_liar:
-        states = (TrialState.COMPLETE, TrialState.PRUNED, TrialState.RUNNING)
+        states = (TrialState.COMPLETE, TrialState.PRUNED, TrialState.INFEASIBLE, TrialState.RUNNING)
     else:
-        states = (TrialState.COMPLETE, TrialState.PRUNED)
+        states = (TrialState.COMPLETE, TrialState.PRUNED, TrialState.INFEASIBLE)
 
     scores = []
     values: Dict[str, List[Optional[float]]] = {param_name: [] for param_name in param_names}
-    violations: Optional[List[float]] = [] if constraints_enabled else None
+    violations: Optional[List[float]] = []
     for trial in study._get_trials(deepcopy=False, states=states, use_cache=not constant_liar):
         # We extract score from the trial.
         if trial.state is TrialState.COMPLETE:
@@ -645,6 +645,8 @@ def _get_observation_pairs(
 
             assert constant_liar
             score = (float("inf"), [signs[0] * float("inf")])
+        elif trial.state is TrialState.INFEASIBLE:
+            score = (float("inf"), [sign * float("inf") for sign in signs])
         else:
             assert False
         scores.append(score)
@@ -659,22 +661,12 @@ def _get_observation_pairs(
                 param_value = None
             values[param_name].append(param_value)
 
-        if constraints_enabled:
-            assert violations is not None
-            if trial.state != TrialState.RUNNING:
-                constraint = trial.system_attrs.get(_CONSTRAINTS_KEY)
-                if constraint is None:
-                    warnings.warn(
-                        f"Trial {trial.number} does not have constraint values."
-                        " It will be treated as a lower priority than other trials."
-                    )
-                    violation = float("inf")
-                else:
-                    # Violation values of infeasible dimensions are summed up.
-                    violation = sum(v for v in constraint if v > 0)
-                violations.append(violation)
-            else:
-                violations.append(float("inf"))
+        if trial.state == TrialState.INFEASIBLE:
+            violations.append(sum(v for v in trial.constraints if v > 0))
+        elif trial.state == TrialState.RUNNING:
+            violations.append(float("inf"))
+        else:
+            violations.append(0)
 
     return values, scores, violations
 

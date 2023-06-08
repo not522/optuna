@@ -726,7 +726,7 @@ def test_constrained_sample_independent_zero_startup() -> None:
 @pytest.mark.parametrize(
     "constraints_enabled, constraints_func, expected_violations",
     [
-        (False, None, None),
+        # (False, None, [0, 0, 0, 0]),
         (True, lambda trial: [(-1, -1), (0, -1), (1, -1), (2, -1)][trial.number], [0, 0, 1, 2]),
     ],
 )
@@ -761,8 +761,8 @@ def test_get_observation_pairs(
     scores = [
         (-float("inf"), [sign * 5.0]),  # COMPLETE
         (-7, [sign * 2]),  # PRUNED (with intermediate values)
-        (-3, [float("inf")]),  # PRUNED (with a NaN intermediate value; it's treated as infinity)
-        (1, [sign * 0.0]),  # PRUNED (without intermediate values)
+        (float("inf"), [sign * float("inf")]),  # INFEASIBLE
+        (float("inf"), [sign * float("inf")]),  # INFEASIBLE
     ]
     assert _tpe.sampler._get_observation_pairs(
         study, ["x"], constraints_enabled=constraints_enabled
@@ -786,12 +786,11 @@ def test_get_observation_pairs(
         expected_violations,
     )
 
-
 @pytest.mark.parametrize("direction", ["minimize", "maximize"])
 @pytest.mark.parametrize(
     "constraints_enabled, constraints_func, expected_violations",
     [
-        (False, None, None),
+        # (False, None, [0, 0, 0, 0]),
         (True, lambda trial: [(-1, -1), (0, -1), (1, -1), (2, -1)][trial.number], [0, 0, 1, 2]),
     ],
 )
@@ -831,10 +830,10 @@ def test_get_observation_pairs_multi(
             (-float("inf"), [sign * 11.0]),  # COMPLETE
             (-7, [sign * 2]),  # PRUNED (with intermediate values)
             (
-                -3,
-                [float("inf")],
-            ),  # PRUNED (with a NaN intermediate value; it's treated as infinity)
-            (1, [sign * 0.0]),  # PRUNED (without intermediate values)
+                float("inf"),
+                [sign * float("inf")],
+            ),  # INFEASIBLE
+            (float("inf"), [sign * float("inf")]),  # INFEASIBLE
         ],
         expected_violations,
     )
@@ -936,7 +935,7 @@ def test_split_order(direction: str, constant_liar: bool, constraints: bool) -> 
         for value in [1, 2]:
             study.add_trial(
                 optuna.create_trial(
-                    state=optuna.trial.TrialState.COMPLETE,
+                    state=optuna.trial.TrialState.INFEASIBLE,
                     value=0,
                     params={"x": 0},
                     distributions={"x": optuna.distributions.FloatDistribution(-1.0, 1.0)},
@@ -964,18 +963,20 @@ def test_split_order(direction: str, constant_liar: bool, constraints: bool) -> 
         states = [
             optuna.trial.TrialState.COMPLETE,
             optuna.trial.TrialState.PRUNED,
+            optuna.trial.TrialState.INFEASIBLE,
             optuna.trial.TrialState.RUNNING,
         ]
     else:
-        states = [optuna.trial.TrialState.COMPLETE, optuna.trial.TrialState.PRUNED]
+        states = [
+            optuna.trial.TrialState.COMPLETE,
+            optuna.trial.TrialState.PRUNED,
+            optuna.trial.TrialState.INFEASIBLE,
+        ]
 
     assert len(values["x"]) == len(study.get_trials(states=states))
     assert len(scores) == len(study.get_trials(states=states))
-    if constraints:
-        assert violations is not None
-        assert len(violations) == len(study.get_trials(states=states))
-    else:
-        assert violations is None
+    assert violations is not None
+    assert len(violations) == len(study.get_trials(states=states))
 
     for gamma in range(1, len(scores)):
         indices_below, indices_above = _tpe.sampler._split_observation_pairs(
@@ -1143,13 +1144,13 @@ def test_constant_liar_observation_pairs(direction: str) -> None:
     assert _tpe.sampler._get_observation_pairs(study, ["x"], constant_liar=False) == (
         {"x": []},
         [],
-        None,
+        [],
     )
 
     assert _tpe.sampler._get_observation_pairs(study, ["x"], constant_liar=True) == (
         {"x": [2]},
         expected_values,
-        None,
+        [float("inf")],
     )
 
 

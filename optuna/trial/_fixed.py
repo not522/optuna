@@ -129,6 +129,9 @@ class FixedTrial(BaseTrial):
     def should_prune(self) -> bool:
         return False
 
+    def report_constraints(self, constraints: Sequence[float]) -> None:
+        pass
+
     def set_user_attr(self, key: str, value: Any) -> None:
         self._user_attrs[key] = value
 
