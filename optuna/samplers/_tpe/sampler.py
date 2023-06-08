@@ -545,11 +545,7 @@ def _get_observation_pairs(
     study: Study,
     param_names: List[str],
     constant_liar: bool = False,  # TODO(hvy): Remove default value and fix unit tests.
-) -> Tuple[
-    Dict[str, List[Optional[float]]],
-    List[Tuple[float, List[float]]],
-    List[float],
-]:
+) -> Tuple[Dict[str, List[Optional[float]]], List[Tuple[float, List[float]]], List[float]]:
     """Get observation pairs from the study.
 
     This function collects observation pairs from the complete or pruned trials of the study.
@@ -667,7 +663,6 @@ def _split_observation_pairs_without_constraints(
     loss_vals: List[Tuple[float, List[float]]],
     n_below: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
-
     n_objectives = 1
     if len(loss_vals) > 0:
         n_objectives = len(loss_vals[0][1])

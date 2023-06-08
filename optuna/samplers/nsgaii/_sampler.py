@@ -2,7 +2,6 @@ from collections import defaultdict
 import hashlib
 import itertools
 from typing import Any
-from typing import Callable
 from typing import cast
 from typing import DefaultDict
 from typing import Dict
@@ -10,15 +9,11 @@ from typing import List
 from typing import Optional
 from typing import Sequence
 from typing import Tuple
-import warnings
 
 import numpy as np
 
 import optuna
 from optuna.distributions import BaseDistribution
-from optuna.exceptions import ExperimentalWarning
-from optuna.samplers._base import _CONSTRAINTS_KEY
-from optuna.samplers._base import _process_constraints_after_trial
 from optuna.samplers._base import BaseSampler
 from optuna.samplers._random import RandomSampler
 from optuna.samplers.nsgaii._crossover import perform_crossover

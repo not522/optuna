@@ -535,11 +535,11 @@ class Trial(BaseTrial):
         trial = self._get_latest_trial()
         return self.study.pruner.prune(self.study, trial)
 
-    def report_constraints(self, constraints: list[float]) -> None:
-        self._storage.set_trial_system_attr(
+    def report_constraints(self, constraints: Sequence[float]) -> None:
+        self.storage.set_trial_system_attr(
             self._trial_id,
             _CONSTRAINTS_KEY,
-            constraints,
+            list(constraints),
         )
 
     def set_user_attr(self, key: str, value: Any) -> None:
@@ -761,6 +761,10 @@ class Trial(BaseTrial):
         """
 
         return self._cached_frozen_trial.number
+
+    @property
+    def constraints(self) -> list[float]:
+        return self.system_attrs.get(_CONSTRAINTS_KEY, [])
 
 
 class _LazyTrialSystemAttrs(UserDict):

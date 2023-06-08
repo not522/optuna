@@ -23,7 +23,6 @@ def plot_pareto_front(
     target_names: list[str] | None = None,
     include_dominated_trials: bool = True,
     axis_order: list[int] | None = None,
-    constraints_func: Callable[[FrozenTrial], Sequence[float]] | None = None,
     targets: Callable[[FrozenTrial], Sequence[float]] | None = None,
 ) -> "Axes":
     """Plot the Pareto front of a study.
@@ -73,17 +72,6 @@ def plot_pareto_front(
                 Deprecated in v3.0.0. This feature will be removed in the future. The removal of
                 this feature is currently scheduled for v5.0.0, but this schedule is subject to
                 change. See https://github.com/optuna/optuna/releases/tag/v3.0.0.
-        constraints_func:
-            An optional function that computes the objective constraints. It must take a
-            :class:`~optuna.trial.FrozenTrial` and return the constraints. The return value must
-            be a sequence of :obj:`float` s. A value strictly larger than 0 means that a
-            constraint is violated. A value equal to or smaller than 0 is considered feasible.
-            This specification is the same as in, for example,
-            :class:`~optuna.samplers.NSGAIISampler`.
-
-            If given, trials are classified into three categories: feasible and best, feasible but
-            non-best, and infeasible. Categories are shown in different colors. Here, whether a
-            trial is best (on Pareto front) or not is determined ignoring all infeasible trials.
         targets:
             A function that returns a tuple of target values to display.
             The argument to this function is :class:`~optuna.trial.FrozenTrial`.
@@ -103,7 +91,7 @@ def plot_pareto_front(
     _imports.check()
 
     info = _get_pareto_front_info(
-        study, target_names, include_dominated_trials, axis_order, constraints_func, targets
+        study, target_names, include_dominated_trials, axis_order, targets
     )
     return _get_pareto_front_plot(info)
 

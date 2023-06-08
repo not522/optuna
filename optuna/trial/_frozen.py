@@ -151,7 +151,7 @@ class FrozenTrial(BaseTrial):
         user_attrs: Dict[str, Any],
         system_attrs: Dict[str, Any],
         intermediate_values: Dict[int, float],
-        constraints: list[float],
+        constraints: Sequence[float],
         trial_id: int,
         *,
         values: Optional[Sequence[float]] = None,
@@ -299,6 +299,9 @@ class FrozenTrial(BaseTrial):
         """
 
         return False
+
+    def report_constraints(self, constraints: Sequence[float]) -> None:
+        pass
 
     def set_user_attr(self, key: str, value: Any) -> None:
         self._user_attrs[key] = value
@@ -490,6 +493,7 @@ def create_trial(
     user_attrs: Optional[Dict[str, Any]] = None,
     system_attrs: Optional[Dict[str, Any]] = None,
     intermediate_values: Optional[Dict[int, float]] = None,
+    constraints: Sequence[float] | None = None,
 ) -> FrozenTrial:
     """Create a new :class:`~optuna.trial.FrozenTrial`.
 
@@ -567,6 +571,7 @@ def create_trial(
     user_attrs = user_attrs or {}
     system_attrs = system_attrs or {}
     intermediate_values = intermediate_values or {}
+    constraints = constraints or []
 
     if state == TrialState.WAITING:
         datetime_start = None
@@ -591,6 +596,7 @@ def create_trial(
         user_attrs=user_attrs,
         system_attrs=system_attrs,
         intermediate_values=intermediate_values,
+        constraints=constraints,
     )
 
     trial._validate()

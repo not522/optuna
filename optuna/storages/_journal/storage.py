@@ -31,6 +31,8 @@ from optuna.trial import TrialState
 
 _logger = optuna.logging.get_logger(__name__)
 
+_CONSTRAINTS_KEY = "constraints"
+
 NOT_FOUND_MSG = "Record does not exist."
 # A heuristic interval number to dump snapshots
 SNAPSHOT_INTERVAL = 100
@@ -536,6 +538,8 @@ class JournalStorageReplayResult:
         else:
             datetime_complete = None
 
+        system_attrs = log.get("system_attrs", {})
+
         self._trials[trial_id] = FrozenTrial(
             trial_id=trial_id,
             number=len(self._study_id_to_trial_ids[study_id]),
@@ -543,9 +547,10 @@ class JournalStorageReplayResult:
             params=params,
             distributions=distributions,
             user_attrs=log.get("user_attrs", {}),
-            system_attrs=log.get("system_attrs", {}),
+            system_attrs=system_attrs,
             value=log.get("value", None),
             intermediate_values={int(k): v for k, v in log.get("intermediate_values", {}).items()},
+            constraints=system_attrs.get(_CONSTARAINTS_KEY, []),
             datetime_start=datetime_start,
             datetime_complete=datetime_complete,
             values=log.get("values", None),

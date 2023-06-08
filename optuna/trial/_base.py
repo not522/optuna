@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import datetime
 from typing import Any
@@ -95,7 +97,7 @@ class BaseTrial(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def report_constraints(self, constraints: list[float]) -> None:
+    def report_constraints(self, constraints: Sequence[float]) -> None:
         raise NotImplementedError
 
     @abc.abstractmethod

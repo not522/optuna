@@ -167,6 +167,7 @@ class InMemoryStorage(BaseStorage):
             system_attrs={},
             value=None,
             intermediate_values={},
+            constraints=[],
             datetime_start=datetime.now(),
             datetime_complete=None,
         )

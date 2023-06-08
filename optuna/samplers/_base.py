@@ -1,12 +1,8 @@
 import abc
 from typing import Any
-from typing import Callable
 from typing import Dict
 from typing import Optional
 from typing import Sequence
-import warnings
-
-import numpy as np
 
 from optuna.distributions import BaseDistribution
 from optuna.study import Study
@@ -197,3 +193,7 @@ class BaseSampler(abc.ABC):
                 "If the study is being used for multi-objective optimization, "
                 f"{self.__class__.__name__} cannot be used."
             )
+
+
+# TODO(not522): Remove this
+_CONSTRAINTS_KEY = "constraints"

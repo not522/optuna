@@ -59,6 +59,8 @@ else:
 
 _logger = optuna.logging.get_logger(__name__)
 
+_CONSTRAINTS_KEY = "constraints"
+
 
 @contextmanager
 def _create_scoped_session(
@@ -479,6 +481,7 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
                     user_attrs={},
                     system_attrs={},
                     intermediate_values={},
+                    constraints=[],
                     trial_id=trial.trial_id,
                 )
 
@@ -863,6 +866,8 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
         else:
             values = None
 
+        system_attrs = {attr.key: json.loads(attr.value_json) for attr in trial.system_attributes}
+
         return FrozenTrial(
             number=trial.number,
             state=trial.state,
@@ -881,15 +886,14 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
                 for p in trial.params
             },
             user_attrs={attr.key: json.loads(attr.value_json) for attr in trial.user_attributes},
-            system_attrs={
-                attr.key: json.loads(attr.value_json) for attr in trial.system_attributes
-            },
+            system_attrs=system_attrs,
             intermediate_values={
                 v.step: models.TrialIntermediateValueModel.stored_repr_to_intermediate_value(
                     v.intermediate_value, v.intermediate_value_type
                 )
                 for v in trial.intermediate_values
             },
+            constraints=system_attrs.get(_CONSTRAINTS_KEY, []),
             trial_id=trial.trial_id,
         )
 

@@ -151,7 +151,7 @@ def _tell_with_warning(
             values_conversion_failure_message = _check_values_are_feasible(study, values)
 
         if values_conversion_failure_message is None:
-            if any(constraint < 0 for constraint in trial.constraints):
+            if any(constraint < 0 for constraint in frozen_trial.constraints):
                 state = TrialState.INFEASIBLE
             else:
                 state = TrialState.COMPLETE
