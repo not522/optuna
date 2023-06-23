@@ -1,9 +1,9 @@
-from typing import Any
+from __future__ import annotations
+
 from typing import Callable
 from typing import Dict
 from typing import NamedTuple
 from typing import Optional
-from typing import Tuple
 
 import numpy as np
 
@@ -52,19 +52,18 @@ class _ParzenEstimator:
                 raise ValueError("Prior weight must be positive.")
 
         self._search_space = search_space
+        self._parameters = parameters
 
-        transformed_observations = self._transform(observations)
+        n_observations = next(iter(observations.values())).size
 
-        assert predetermined_weights is None or len(transformed_observations) == len(
-            predetermined_weights
-        )
+        assert predetermined_weights is None or n_observations == len(predetermined_weights)
         weights = (
             predetermined_weights
             if predetermined_weights is not None
-            else self._call_weights_func(parameters.weights, len(transformed_observations))
+            else self._call_weights_func(parameters.weights, n_observations)
         )
 
-        if len(transformed_observations) == 0:
+        if n_observations == 0:
             weights = np.array([1.0])
         elif parameters.consider_prior:
             assert parameters.prior_weight is not None
@@ -73,9 +72,7 @@ class _ParzenEstimator:
         self._mixture_distribution = _MixtureOfProductDistribution(
             weights=weights,
             distributions=[
-                self._calculate_distributions(
-                    transformed_observations[:, i], search_space[param], parameters
-                )
+                self._calculate_distributions(observations[param], search_space[param])
                 for i, param in enumerate(search_space)
             ],
         )
@@ -146,71 +143,93 @@ class _ParzenEstimator:
 
     def _calculate_distributions(
         self,
-        transformed_observations: np.ndarray,
+        observations: np.ndarray,
         search_space: BaseDistribution,
-        parameters: _ParzenEstimatorParameters,
     ) -> _BatchedDistributions:
         if isinstance(search_space, CategoricalDistribution):
-            return self._calculate_categorical_distributions(
-                transformed_observations, search_space.choices, parameters
-            )
+            return _CategoricalDistributionsFactory(
+                self._parameters.consider_prior, self._parameters.prior_weight
+            )(observations, search_space)
         else:
             assert isinstance(search_space, (FloatDistribution, IntDistribution))
-            if search_space.log:
-                low = np.log(search_space.low)
-                high = np.log(search_space.high)
-            else:
-                low = search_space.low
-                high = search_space.high
-            step = search_space.step
+            return _NumericalDistributionsFactory(
+                self._parameters.consider_prior,
+                self._parameters.multivariate,
+                self._parameters.consider_endpoints,
+                self._parameters.consider_magic_clip,
+                len(self._search_space),
+            )(observations, search_space)
 
-            # TODO(contramundum53): This is a hack and should be fixed.
-            if step is not None and search_space.log:
-                low = np.log(search_space.low - step / 2)
-                high = np.log(search_space.high + step / 2)
-                step = None
 
-            return self._calculate_numerical_distributions(
-                transformed_observations, low, high, step, parameters
-            )
+class _CategoricalDistributionsFactory:
+    def __init__(self, consider_prior, prior_weight) -> None:
+        self._consider_prior = consider_prior
+        self._prior_weight = prior_weight
 
-    def _calculate_categorical_distributions(
+    def __call__(
         self,
         observations: np.ndarray,
-        choices: Tuple[Any, ...],
-        parameters: _ParzenEstimatorParameters,
+        search_space: CategoricalDistribution,
     ) -> _BatchedDistributions:
-        consider_prior = parameters.consider_prior or len(observations) == 0
+        consider_prior = self._consider_prior or len(observations) == 0
 
-        assert parameters.prior_weight is not None
+        assert self._prior_weight is not None
         weights = np.full(
-            shape=(len(observations) + consider_prior, len(choices)),
-            fill_value=parameters.prior_weight / (len(observations) + consider_prior),
+            shape=(len(observations) + consider_prior, len(search_space.choices)),
+            fill_value=self._prior_weight / (len(observations) + consider_prior),
         )
 
         weights[np.arange(len(observations)), observations.astype(int)] += 1
         weights /= weights.sum(axis=1, keepdims=True)
         return _BatchedCategoricalDistributions(weights)
 
-    def _calculate_numerical_distributions(
+
+class _NumericalDistributionsFactory:
+    def __init__(
+        self,
+        consider_prior: bool,
+        multivariate: bool,
+        consider_endpoints: bool,
+        consider_magic_clip: bool,
+        n_params: int,
+    ) -> None:
+        self._consider_prior = consider_prior
+        self._multivariate = multivariate
+        self._consider_endpoints = consider_endpoints
+        self._consider_magic_clip = consider_magic_clip
+        self._n_params = n_params
+
+    def __call__(
         self,
         observations: np.ndarray,
-        low: float,
-        high: float,
-        step: Optional[float],
-        parameters: _ParzenEstimatorParameters,
+        search_space: FloatDistribution | IntDistribution,
     ) -> _BatchedDistributions:
+        if search_space.log:
+            observations = np.log(observations)
+            low = np.log(search_space.low)
+            high = np.log(search_space.high)
+        else:
+            low = search_space.low
+            high = search_space.high
+        step = search_space.step
+
+        # TODO(contramundum53): This is a hack and should be fixed.
+        if step is not None and search_space.log:
+            low = np.log(search_space.low - step / 2)
+            high = np.log(search_space.high + step / 2)
+            step = None
+
         step_or_0 = step or 0
 
         mus = observations
-        consider_prior = parameters.consider_prior or len(observations) == 0
+        consider_prior = self._consider_prior or len(observations) == 0
 
         def compute_sigmas() -> np.ndarray:
-            if parameters.multivariate:
+            if self._multivariate:
                 SIGMA0_MAGNITUDE = 0.2
                 sigma = (
                     SIGMA0_MAGNITUDE
-                    * max(len(observations), 1) ** (-1.0 / (len(self._search_space) + 4))
+                    * max(len(observations), 1) ** (-1.0 / (self._n_params + 4))
                     * (high - low + step_or_0)
                 )
                 sigmas = np.full(shape=(len(observations),), fill_value=sigma)
@@ -231,7 +250,7 @@ class _ParzenEstimator:
                     sorted_mus_with_endpoints[2:] - sorted_mus_with_endpoints[1:-1],
                 )
 
-                if not parameters.consider_endpoints and sorted_mus_with_endpoints.shape[0] >= 4:
+                if not self._consider_endpoints and sorted_mus_with_endpoints.shape[0] >= 4:
                     sorted_sigmas[0] = sorted_mus_with_endpoints[2] - sorted_mus_with_endpoints[1]
                     sorted_sigmas[-1] = (
                         sorted_mus_with_endpoints[-2] - sorted_mus_with_endpoints[-3]
@@ -241,7 +260,7 @@ class _ParzenEstimator:
 
             # We adjust the range of the 'sigmas' according to the 'consider_magic_clip' flag.
             maxsigma = 1.0 * (high - low + step_or_0)
-            if parameters.consider_magic_clip:
+            if self._consider_magic_clip:
                 # TODO(contramundum53): Remove dependency of minsigma on consider_prior.
                 minsigma = (
                     1.0
