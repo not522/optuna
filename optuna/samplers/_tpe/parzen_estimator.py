@@ -15,7 +15,6 @@ from optuna.samplers._tpe.probability_distributions import _BatchedCategoricalDi
 from optuna.samplers._tpe.probability_distributions import _BatchedDiscreteTruncNormDistributions
 from optuna.samplers._tpe.probability_distributions import _BatchedDistributions
 from optuna.samplers._tpe.probability_distributions import _BatchedTruncNormDistributions
-from optuna.samplers._tpe.probability_distributions import _MixtureOfProductDistribution
 
 
 EPS = 1e-12
@@ -69,20 +68,33 @@ class _ParzenEstimator:
             assert parameters.prior_weight is not None
             weights = np.append(weights, [parameters.prior_weight])
         weights /= weights.sum()
-        self._mixture_distribution = _MixtureOfProductDistribution(
-            weights=weights,
-            distributions=[
-                self._calculate_distributions(observations[param], search_space[param])
-                for i, param in enumerate(search_space)
-            ],
-        )
+        self._weights = weights
+        self._distributions = [
+            self._calculate_distributions(observations[param], search_space[param])
+            for i, param in enumerate(search_space)
+        ]
 
-    def sample(self, rng: np.random.RandomState, size: int) -> Dict[str,np.ndarray]:
-        samples = self._mixture_distribution.sample(rng, size)
-        return {param: samples[:, i] for i, param in enumerate(self._search_space)}
+    def sample(self, rng: np.random.RandomState, size: int) -> Dict[str, np.ndarray]:
+        active_indices = rng.choice(len(self._weights), p=self._weights, size=size)
+
+        samples = {}
+        for param, d in zip(self._search_space, self._distributions):
+            samples[param] = d.sample(rng, size, active_indices)
+
+        return samples
 
     def log_pdf(self, samples_dict: Dict[str, np.ndarray]) -> np.ndarray:
-        return self._mixture_distribution.log_pdf(samples_dict)
+        n_vars = len(samples_dict)
+        batch_size = next(iter(samples_dict.values())).size
+        log_pdfs = np.empty((batch_size, len(self._weights), n_vars), dtype=np.float64)
+        for i, (d, xi) in enumerate(zip(self._distributions, samples_dict.values())):
+            log_pdfs[:, :, i] = d.log_pdf(xi)
+        weighted_log_pdf = np.sum(log_pdfs, axis=-1) + np.log(self._weights[None, :])
+        max_ = weighted_log_pdf.max(axis=1)
+        # We need to avoid (-inf) - (-inf) when the probability is zero.
+        max_[np.isneginf(max_)] = 0
+        with np.errstate(divide="ignore"):  # Suppress warning in log(0).
+            return np.log(np.exp(weighted_log_pdf - max_[:, None]).sum(axis=1)) + max_
 
     @staticmethod
     def _call_weights_func(weights_func: Callable[[int], np.ndarray], n: int) -> np.ndarray:
@@ -246,6 +258,10 @@ class _NumericalDistributionsFactory:
             sigmas = np.append(sigmas, [prior_sigma])
 
         if step is None:
-            return _BatchedTruncNormDistributions(mus, sigmas, low, high, search_space.log, search_space)
+            return _BatchedTruncNormDistributions(
+                mus, sigmas, low, high, search_space.log, search_space
+            )
         else:
-            return _BatchedDiscreteTruncNormDistributions(mus, sigmas, low, high, step, search_space.log)
+            return _BatchedDiscreteTruncNormDistributions(
+                mus, sigmas, low, high, step, search_space.log
+            )

@@ -46,7 +46,15 @@ class _BatchedCategoricalDistributions(_BatchedDistributions):
 
 
 class _BatchedTruncNormDistributions(_BatchedDistributions):
-    def __init__(self, mu: np.ndarray, sigma: np.ndarray, low: float, high: float, log: bool, search_space: FloatDistribution | IntDistribution) -> None:
+    def __init__(
+        self,
+        mu: np.ndarray,
+        sigma: np.ndarray,
+        low: float,
+        high: float,
+        log: bool,
+        search_space: FloatDistribution | IntDistribution,
+    ) -> None:
         self._mu = mu
         self._sigma = sigma
         self._low = low  # Currently, low and high do not change per trial.
@@ -73,7 +81,9 @@ class _BatchedTruncNormDistributions(_BatchedDistributions):
         if isinstance(self._search_space, IntDistribution):
             # TODO(contramundum53): Remove this line after fixing log-Int hack.
             samples = np.clip(
-                self._search_space.low + np.round((samples - self._search_space.low) / self._search_space.step) * self._search_space.step,
+                self._search_space.low
+                + np.round((samples - self._search_space.low) / self._search_space.step)
+                * self._search_space.step,
                 self._search_space.low,
                 self._search_space.high,
             )
@@ -95,7 +105,7 @@ class _BatchedTruncNormDistributions(_BatchedDistributions):
 
 class _BatchedDiscreteTruncNormDistributions(_BatchedDistributions):
     def __init__(
-            self, mu: np.ndarray, sigma: np.ndarray, low: float, high: float, step: float, log: bool
+        self, mu: np.ndarray, sigma: np.ndarray, low: float, high: float, step: float, log: bool
     ) -> None:
         self._mu = mu
         self._sigma = sigma
@@ -144,30 +154,3 @@ class _BatchedDiscreteTruncNormDistributions(_BatchedDistributions):
             (self._high + self._step / 2 - self._mu[None, :]) / self._sigma[None, :],
         )
         return log_gauss_mass - log_p_accept
-
-
-class _MixtureOfProductDistribution(NamedTuple):
-    weights: np.ndarray
-    distributions: List[_BatchedDistributions]
-
-    def sample(self, rng: np.random.RandomState, batch_size: int) -> np.ndarray:
-        active_indices = rng.choice(len(self.weights), p=self.weights, size=batch_size)
-
-        ret = np.empty((batch_size, len(self.distributions)), dtype=np.float64)
-        for i, d in enumerate(self.distributions):
-            ret[:, i] = d.sample(rng, batch_size, active_indices)
-
-        return ret
-
-    def log_pdf(self, x: dict[str, np.ndarray]) -> np.ndarray:
-        n_vars = len(x)
-        batch_size = next(iter(x.values())).size
-        log_pdfs = np.empty((batch_size, len(self.weights), n_vars), dtype=np.float64)
-        for i, (d, xi) in enumerate(zip(self.distributions, x.values())):
-            log_pdfs[:, :, i] = d.log_pdf(xi)
-        weighted_log_pdf = np.sum(log_pdfs, axis=-1) + np.log(self.weights[None, :])
-        max_ = weighted_log_pdf.max(axis=1)
-        # We need to avoid (-inf) - (-inf) when the probability is zero.
-        max_[np.isneginf(max_)] = 0
-        with np.errstate(divide="ignore"):  # Suppress warning in log(0).
-            return np.log(np.exp(weighted_log_pdf - max_[:, None]).sum(axis=1)) + max_
