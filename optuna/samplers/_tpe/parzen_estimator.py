@@ -77,13 +77,12 @@ class _ParzenEstimator:
             ],
         )
 
-    def sample(self, rng: np.random.RandomState, size: int) -> Dict[str, np.ndarray]:
-        sampled = self._mixture_distribution.sample(rng, size)
-        return self._untransform(sampled)
+    def sample(self, rng: np.random.RandomState, size: int) -> Dict[str,np.ndarray]:
+        samples = self._mixture_distribution.sample(rng, size)
+        return {param: samples[:, i] for i, param in enumerate(self._search_space)}
 
     def log_pdf(self, samples_dict: Dict[str, np.ndarray]) -> np.ndarray:
-        transformed_samples = self._transform(samples_dict)
-        return self._mixture_distribution.log_pdf(transformed_samples)
+        return self._mixture_distribution.log_pdf(samples_dict)
 
     @staticmethod
     def _call_weights_func(weights_func: Callable[[int], np.ndarray], n: int) -> np.ndarray:
@@ -107,39 +106,6 @@ class _ParzenEstimator:
         # TODO(HideakiImamura) Raise `ValueError` if the weight function returns an ndarray of
         # unexpected size.
         return w
-
-    @staticmethod
-    def _is_log(dist: BaseDistribution) -> bool:
-        return isinstance(dist, (FloatDistribution, IntDistribution)) and dist.log
-
-    def _transform(self, samples_dict: Dict[str, np.ndarray]) -> np.ndarray:
-        return np.array(
-            [
-                np.log(samples_dict[param])
-                if self._is_log(self._search_space[param])
-                else samples_dict[param]
-                for param in self._search_space
-            ]
-        ).T
-
-    def _untransform(self, samples_array: np.ndarray) -> Dict[str, np.ndarray]:
-        res = {
-            param: np.exp(samples_array[:, i])
-            if self._is_log(self._search_space[param])
-            else samples_array[:, i]
-            for i, param in enumerate(self._search_space)
-        }
-        # TODO(contramundum53): Remove this line after fixing log-Int hack.
-        return {
-            param: np.clip(
-                dist.low + np.round((res[param] - dist.low) / dist.step) * dist.step,
-                dist.low,
-                dist.high,
-            )
-            if isinstance(dist, IntDistribution)
-            else res[param]
-            for (param, dist) in self._search_space.items()
-        }
 
     def _calculate_distributions(
         self,
@@ -280,6 +246,6 @@ class _NumericalDistributionsFactory:
             sigmas = np.append(sigmas, [prior_sigma])
 
         if step is None:
-            return _BatchedTruncNormDistributions(mus, sigmas, low, high)
+            return _BatchedTruncNormDistributions(mus, sigmas, low, high, search_space.log, search_space)
         else:
-            return _BatchedDiscreteTruncNormDistributions(mus, sigmas, low, high, step)
+            return _BatchedDiscreteTruncNormDistributions(mus, sigmas, low, high, step, search_space.log)
