@@ -69,9 +69,37 @@ class _ParzenEstimator:
             weights = np.append(weights, [parameters.prior_weight])
         weights /= weights.sum()
         self._weights = weights
+
+        numerical_distributions_factory = _NumericalDistributionsFactory(
+            self._parameters.consider_prior,
+            self._parameters.multivariate,
+            self._parameters.consider_endpoints,
+            self._parameters.consider_magic_clip,
+        )
+        categorical_distributions_factory = _CategoricalDistributionsFactory(
+            self._parameters.consider_prior, self._parameters.prior_weight
+        )
+        _distribution_factories: dict[
+            type[BaseDistribution],
+            Callable[
+                [
+                    np.ndarray,
+                    BaseDistribution,
+                    dict[str, BaseDistribution],
+                ],
+                _BatchedDistributions,
+            ],
+        ] = {
+            FloatDistribution: numerical_distributions_factory,
+            IntDistribution: numerical_distributions_factory,
+            CategoricalDistribution: categorical_distributions_factory,
+        }
+
         self._distributions = [
-            self._calculate_distributions(observations[param], search_space[param])
-            for i, param in enumerate(search_space)
+            _distribution_factories[type(distribution)](
+                observations[param], distribution, search_space
+            )
+            for i, (param, distribution) in enumerate(search_space.items())
         ]
 
     def sample(self, rng: np.random.RandomState, size: int) -> Dict[str, np.ndarray]:
@@ -119,25 +147,6 @@ class _ParzenEstimator:
         # unexpected size.
         return w
 
-    def _calculate_distributions(
-        self,
-        observations: np.ndarray,
-        search_space: BaseDistribution,
-    ) -> _BatchedDistributions:
-        if isinstance(search_space, CategoricalDistribution):
-            return _CategoricalDistributionsFactory(
-                self._parameters.consider_prior, self._parameters.prior_weight
-            )(observations, search_space)
-        else:
-            assert isinstance(search_space, (FloatDistribution, IntDistribution))
-            return _NumericalDistributionsFactory(
-                self._parameters.consider_prior,
-                self._parameters.multivariate,
-                self._parameters.consider_endpoints,
-                self._parameters.consider_magic_clip,
-                len(self._search_space),
-            )(observations, search_space)
-
 
 class _CategoricalDistributionsFactory:
     def __init__(self, consider_prior, prior_weight) -> None:
@@ -147,13 +156,14 @@ class _CategoricalDistributionsFactory:
     def __call__(
         self,
         observations: np.ndarray,
-        search_space: CategoricalDistribution,
+        distribution: CategoricalDistribution,
+        search_space: dict[str, BaseDistribution],
     ) -> _BatchedDistributions:
         consider_prior = self._consider_prior or len(observations) == 0
 
         assert self._prior_weight is not None
         weights = np.full(
-            shape=(len(observations) + consider_prior, len(search_space.choices)),
+            shape=(len(observations) + consider_prior, len(distribution.choices)),
             fill_value=self._prior_weight / (len(observations) + consider_prior),
         )
 
@@ -169,32 +179,31 @@ class _NumericalDistributionsFactory:
         multivariate: bool,
         consider_endpoints: bool,
         consider_magic_clip: bool,
-        n_params: int,
     ) -> None:
         self._consider_prior = consider_prior
         self._multivariate = multivariate
         self._consider_endpoints = consider_endpoints
         self._consider_magic_clip = consider_magic_clip
-        self._n_params = n_params
 
     def __call__(
         self,
         observations: np.ndarray,
-        search_space: FloatDistribution | IntDistribution,
+        distribution: FloatDistribution | IntDistribution,
+        search_space: dict[str, BaseDistribution],
     ) -> _BatchedDistributions:
-        if search_space.log:
+        if distribution.log:
             observations = np.log(observations)
-            low = np.log(search_space.low)
-            high = np.log(search_space.high)
+            low = np.log(distribution.low)
+            high = np.log(distribution.high)
         else:
-            low = search_space.low
-            high = search_space.high
-        step = search_space.step
+            low = distribution.low
+            high = distribution.high
+        step = distribution.step
 
         # TODO(contramundum53): This is a hack and should be fixed.
-        if step is not None and search_space.log:
-            low = np.log(search_space.low - step / 2)
-            high = np.log(search_space.high + step / 2)
+        if step is not None and distribution.log:
+            low = np.log(distribution.low - step / 2)
+            high = np.log(distribution.high + step / 2)
             step = None
 
         step_or_0 = step or 0
@@ -207,7 +216,7 @@ class _NumericalDistributionsFactory:
                 SIGMA0_MAGNITUDE = 0.2
                 sigma = (
                     SIGMA0_MAGNITUDE
-                    * max(len(observations), 1) ** (-1.0 / (self._n_params + 4))
+                    * max(len(observations), 1) ** (-1.0 / (len(search_space) + 4))
                     * (high - low + step_or_0)
                 )
                 sigmas = np.full(shape=(len(observations),), fill_value=sigma)
@@ -259,9 +268,9 @@ class _NumericalDistributionsFactory:
 
         if step is None:
             return _BatchedTruncNormDistributions(
-                mus, sigmas, low, high, search_space.log, search_space
+                mus, sigmas, low, high, distribution.log, distribution
             )
         else:
             return _BatchedDiscreteTruncNormDistributions(
-                mus, sigmas, low, high, step, search_space.log
+                mus, sigmas, low, high, step, distribution.log
             )

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import abc
-from typing import List
-from typing import NamedTuple
 
 import numpy as np
 
@@ -53,14 +51,14 @@ class _BatchedTruncNormDistributions(_BatchedDistributions):
         low: float,
         high: float,
         log: bool,
-        search_space: FloatDistribution | IntDistribution,
+        distribution: FloatDistribution | IntDistribution,
     ) -> None:
         self._mu = mu
         self._sigma = sigma
         self._low = low  # Currently, low and high do not change per trial.
         self._high = high
         self._log = log
-        self._search_space = search_space
+        self._distribution = distribution
 
     def sample(
         self, rng: np.random.RandomState, batch_size: int, active_indices: np.ndarray
@@ -78,14 +76,14 @@ class _BatchedTruncNormDistributions(_BatchedDistributions):
         if self._log:
             samples = np.exp(samples)
 
-        if isinstance(self._search_space, IntDistribution):
+        if isinstance(self._distribution, IntDistribution):
             # TODO(contramundum53): Remove this line after fixing log-Int hack.
             samples = np.clip(
-                self._search_space.low
-                + np.round((samples - self._search_space.low) / self._search_space.step)
-                * self._search_space.step,
-                self._search_space.low,
-                self._search_space.high,
+                self._distribution.low
+                + np.round((samples - self._distribution.low) / self._distribution.step)
+                * self._distribution.step,
+                self._distribution.low,
+                self._distribution.high,
             )
 
         return samples
