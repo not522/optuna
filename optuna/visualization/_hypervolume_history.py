@@ -128,6 +128,7 @@ def _get_hypervolume_history_info(
     hypervolume = 0.0
     for trial in completed_trials:
         trial_numbers.append(trial.number)
+        print(trial.number)
 
         has_constraints = _CONSTRAINTS_KEY in trial.system_attrs
         if has_constraints:
@@ -142,10 +143,6 @@ def _get_hypervolume_history_info(
             values.append(hypervolume)
             continue
 
-        best_trials = list(
-            filter(lambda t: not _dominates(trial, t, study.directions), best_trials)
-        ) + [trial]
-
         solution_set = np.asarray(
             list(
                 filter(
@@ -154,9 +151,20 @@ def _get_hypervolume_history_info(
                 )
             )
         )
+
+        point = signs * trial.values
         if solution_set.size > 0:
-            hypervolume = WFG().compute(solution_set, minimization_reference_point)
+            solution_set = solution_set[solution_set[:, 0].argsort()]
+            wfg = WFG()
+            wfg._reference_point = minimization_reference_point
+            hypervolume += wfg._compute_exclusive_hv(point, solution_set)
+        else:
+            hypervolume += np.abs(np.prod(point - minimization_reference_point))
         values.append(hypervolume)
+
+        best_trials = list(
+            filter(lambda t: not _dominates(trial, t, study.directions), best_trials)
+        ) + [trial]
 
     if len(best_trials) == 0:
         _logger.warning("Your study does not have any feasible trials.")
