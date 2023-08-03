@@ -15,14 +15,21 @@ from optuna.testing.objectives import fail_objective
 from optuna.testing.visualization import prepare_study_with_trials
 from optuna.trial import create_trial
 from optuna.visualization import plot_slice as plotly_plot_slice
-from optuna.visualization._plotly_imports import go
+from optuna.visualization._plotly_imports import _imports as plotly_imports
 from optuna.visualization._slice import _get_slice_plot_info
 from optuna.visualization._slice import _SlicePlotInfo
 from optuna.visualization._slice import _SliceSubplotInfo
 from optuna.visualization._utils import COLOR_SCALE
 from optuna.visualization.matplotlib import plot_slice as plt_plot_slice
-from optuna.visualization.matplotlib._matplotlib_imports import Axes
-from optuna.visualization.matplotlib._matplotlib_imports import plt
+from optuna.visualization.matplotlib._matplotlib_imports import _imports as plt_imports
+
+
+if plotly_imports.is_successful():
+    from optuna.visualization._plotly_imports import go
+
+if plt_imports.is_successful():
+    from optuna.visualization.matplotlib._matplotlib_imports import Axes
+    from optuna.visualization.matplotlib._matplotlib_imports import plt
 
 
 parametrize_plot_slice = pytest.mark.parametrize("plot_slice", [plotly_plot_slice, plt_plot_slice])

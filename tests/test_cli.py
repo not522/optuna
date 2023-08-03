@@ -12,14 +12,12 @@ from typing import Tuple
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
-import fakeredis
 import numpy as np
-from pandas import Timedelta
-from pandas import Timestamp
 import pytest
 import yaml
 
 import optuna
+from optuna._imports import try_import
 import optuna.cli
 from optuna.exceptions import CLIUsageError
 from optuna.exceptions import ExperimentalWarning
@@ -33,6 +31,12 @@ from optuna.testing.storages import StorageSupplier
 from optuna.testing.tempfile_pool import NamedTemporaryFilePool
 from optuna.trial import Trial
 from optuna.trial import TrialState
+
+
+with try_import():
+    import fakeredis
+    from pandas import Timedelta
+    from pandas import Timestamp
 
 
 # An example of objective functions

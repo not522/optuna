@@ -18,10 +18,17 @@ from optuna.visualization import plot_pareto_front
 import optuna.visualization._pareto_front
 from optuna.visualization._pareto_front import _get_pareto_front_info
 from optuna.visualization._pareto_front import _ParetoFrontInfo
-from optuna.visualization._plotly_imports import go
+from optuna.visualization._plotly_imports import _imports as plotly_imports
 from optuna.visualization._utils import COLOR_SCALE
-from optuna.visualization.matplotlib._matplotlib_imports import plt
+from optuna.visualization.matplotlib._matplotlib_imports import _imports as plt_imports
 import optuna.visualization.matplotlib._pareto_front
+
+
+if plotly_imports.is_successful():
+    from optuna.visualization._plotly_imports import go
+
+if plt_imports.is_successful():
+    from optuna.visualization.matplotlib._matplotlib_imports import plt
 
 
 def test_get_pareto_front_info_infer_n_targets() -> None:

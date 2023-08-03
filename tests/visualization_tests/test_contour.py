@@ -21,11 +21,18 @@ from optuna.visualization._contour import _AxisInfo
 from optuna.visualization._contour import _ContourInfo
 from optuna.visualization._contour import _get_contour_info
 from optuna.visualization._contour import _SubContourInfo
-from optuna.visualization._plotly_imports import go
+from optuna.visualization._plotly_imports import _imports as plotly_imports
 from optuna.visualization._utils import COLOR_SCALE
 from optuna.visualization.matplotlib import plot_contour as plt_plot_contour
-from optuna.visualization.matplotlib._matplotlib_imports import Axes
-from optuna.visualization.matplotlib._matplotlib_imports import plt
+from optuna.visualization.matplotlib._matplotlib_imports import _imports as plt_imports
+
+
+if plotly_imports.is_successful():
+    from optuna.visualization._plotly_imports import go
+
+if plt_imports.is_successful():
+    from optuna.visualization.matplotlib._matplotlib_imports import Axes
+    from optuna.visualization.matplotlib._matplotlib_imports import plt
 
 
 parametrize_plot_contour = pytest.mark.parametrize(

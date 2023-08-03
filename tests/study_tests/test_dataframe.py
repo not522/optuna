@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-import pandas as pd
 import pytest
 
 from optuna import create_study
 from optuna import create_trial
 from optuna import Trial
+from optuna._imports import try_import
 from optuna.testing.storages import STORAGE_MODES
 from optuna.testing.storages import StorageSupplier
 from optuna.trial import TrialState
+
+
+with try_import():
+    import pandas as pd
 
 
 def test_study_trials_dataframe_with_no_trials() -> None:

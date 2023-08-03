@@ -5,9 +5,13 @@ from io import BytesIO
 import pytest
 
 from optuna.visualization._optimization_history import _OptimizationHistoryInfo
-from optuna.visualization.matplotlib._matplotlib_imports import plt
+from optuna.visualization.matplotlib._matplotlib_imports import _imports as plt_imports
 from optuna.visualization.matplotlib._optimization_history import _get_optimization_history_plot
 from tests.visualization_tests.test_optimization_history import optimization_history_info_lists
+
+
+if plt_imports.is_successful():
+    from optuna.visualization.matplotlib._matplotlib_imports import plt
 
 
 @pytest.mark.parametrize("target_name", ["Objective Value", "Target Name"])

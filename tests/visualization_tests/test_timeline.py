@@ -9,9 +9,13 @@ import pytest
 import optuna
 from optuna.study.study import Study
 from optuna.trial import TrialState
-from optuna.visualization._plotly_imports import go
+from optuna.visualization._plotly_imports import _imports as plotly_imports
 from optuna.visualization._timeline import _get_timeline_info
 from optuna.visualization._timeline import plot_timeline
+
+
+if plotly_imports.is_successful():
+    from optuna.visualization._plotly_imports import go
 
 
 def _create_study(trial_states_list: list[TrialState]) -> Study:

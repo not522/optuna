@@ -17,12 +17,16 @@ from optuna.testing.objectives import fail_objective
 from optuna.testing.visualization import prepare_study_with_trials
 from optuna.trial import create_trial
 from optuna.visualization import plot_rank as plotly_plot_rank
-from optuna.visualization._plotly_imports import go
+from optuna.visualization._plotly_imports import _imports as plotly_imports
 from optuna.visualization._rank import _AxisInfo
 from optuna.visualization._rank import _get_order_with_same_order_averaging
 from optuna.visualization._rank import _get_rank_info
 from optuna.visualization._rank import _RankPlotInfo
 from optuna.visualization._rank import _RankSubplotInfo
+
+
+if plotly_imports.is_successful():
+    from optuna.visualization._plotly_imports import go
 
 
 parametrize_plot_rank = pytest.mark.parametrize("plot_rank", [plotly_plot_rank])

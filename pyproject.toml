@@ -117,14 +117,13 @@ optional = [
     "redis",  # optuna/storages/redis.py.
     "scikit-learn>=0.24.2",
     # optuna/visualization/param_importances.py.
+    "scipy",
 ]
 test = [
     "coverage",
     "fakeredis[lua]",
-    "kaleido",
     "moto",
     "pytest",
-    "scipy>=1.9.2; python_version>='3.8'",
 ]
 
 [project.urls]
