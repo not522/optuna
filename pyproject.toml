@@ -118,11 +118,12 @@ optional = [
     "scikit-learn>=0.24.2",
     # optuna/visualization/param_importances.py.
     "scipy",
+    # TODO(naotomizuno): Move followings.
+    "fakeredis[lua]",
+    "moto",
 ]
 test = [
     "coverage",
-    "fakeredis[lua]",
-    "moto",
     "pytest",
 ]
 
