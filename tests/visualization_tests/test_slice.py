@@ -31,6 +31,8 @@ if plt_imports.is_successful():
     from optuna.visualization.matplotlib._matplotlib_imports import Axes
     from optuna.visualization.matplotlib._matplotlib_imports import plt
 
+pytestmark = pytest.mark.optional
+
 
 parametrize_plot_slice = pytest.mark.parametrize("plot_slice", [plotly_plot_slice, plt_plot_slice])
 

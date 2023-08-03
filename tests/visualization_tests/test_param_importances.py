@@ -32,6 +32,8 @@ if plt_imports.is_successful():
     from optuna.visualization.matplotlib._matplotlib_imports import Axes
     from optuna.visualization.matplotlib._matplotlib_imports import plt
 
+pytestmark = pytest.mark.optional
+
 
 parametrize_plot_param_importances = pytest.mark.parametrize(
     "plot_param_importances", [plotly_plot_param_importances, plt_plot_param_importances]

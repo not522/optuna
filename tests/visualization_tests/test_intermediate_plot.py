@@ -22,6 +22,8 @@ if plotly_imports.is_successful():
 if plt_imports.is_successful():
     from optuna.visualization.matplotlib._matplotlib_imports import plt
 
+pytestmark = pytest.mark.optional
+
 
 def test_intermediate_plot_info() -> None:
     # Test with no trials.

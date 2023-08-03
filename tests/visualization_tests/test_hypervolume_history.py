@@ -11,6 +11,9 @@ from optuna.visualization._hypervolume_history import _get_hypervolume_history_i
 from optuna.visualization._hypervolume_history import _HypervolumeHistoryInfo
 
 
+pytestmark = pytest.mark.optional
+
+
 @pytest.mark.parametrize(
     "directions",
     [

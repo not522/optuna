@@ -28,6 +28,8 @@ from optuna.visualization._rank import _RankSubplotInfo
 if plotly_imports.is_successful():
     from optuna.visualization._plotly_imports import go
 
+pytestmark = pytest.mark.optional
+
 
 parametrize_plot_rank = pytest.mark.parametrize("plot_rank", [plotly_plot_rank])
 

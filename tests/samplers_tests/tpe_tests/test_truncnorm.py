@@ -2,13 +2,13 @@ import sys
 
 import numpy as np
 import pytest
-from scipy.stats import truncnorm as truncnorm_scipy
 
 from optuna._imports import try_import
 import optuna.samplers._tpe._truncnorm as truncnorm_ours
 
 
 with try_import() as _imports:
+    from scipy.stats import truncnorm as truncnorm_scipy
     from scipy.stats._continuous_distns import _log_gauss_mass as _log_gauss_mass_scipy
 
 

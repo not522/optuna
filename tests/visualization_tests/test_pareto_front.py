@@ -30,6 +30,8 @@ if plotly_imports.is_successful():
 if plt_imports.is_successful():
     from optuna.visualization.matplotlib._matplotlib_imports import plt
 
+pytestmark = pytest.mark.optional
+
 
 def test_get_pareto_front_info_infer_n_targets() -> None:
     study = optuna.create_study(directions=["minimize", "minimize"])

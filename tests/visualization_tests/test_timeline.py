@@ -17,6 +17,8 @@ from optuna.visualization._timeline import plot_timeline
 if plotly_imports.is_successful():
     from optuna.visualization._plotly_imports import go
 
+pytestmark = pytest.mark.optional
+
 
 def _create_study(trial_states_list: list[TrialState]) -> Study:
     study = optuna.create_study()

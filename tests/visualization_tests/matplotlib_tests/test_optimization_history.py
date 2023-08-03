@@ -13,6 +13,8 @@ from tests.visualization_tests.test_optimization_history import optimization_his
 if plt_imports.is_successful():
     from optuna.visualization.matplotlib._matplotlib_imports import plt
 
+pytestmark = pytest.mark.optional
+
 
 @pytest.mark.parametrize("target_name", ["Objective Value", "Target Name"])
 @pytest.mark.parametrize("info_list", optimization_history_info_lists)

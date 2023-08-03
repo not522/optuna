@@ -21,6 +21,9 @@ from optuna.visualization._optimization_history import _ValuesInfo
 from optuna.visualization._optimization_history import _ValueState
 
 
+pytestmark = pytest.mark.optional
+
+
 def test_target_is_none_and_study_is_multi_obj() -> None:
     study = create_study(directions=["minimize", "minimize"])
     with pytest.raises(ValueError):

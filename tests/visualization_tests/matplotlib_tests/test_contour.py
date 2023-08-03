@@ -1,7 +1,11 @@
 import numpy as np
+import pytest
 
 from optuna.visualization.matplotlib._contour import _create_zmap
 from optuna.visualization.matplotlib._contour import _interpolate_zmap
+
+
+pytestmark = pytest.mark.optional
 
 
 def test_create_zmap() -> None:

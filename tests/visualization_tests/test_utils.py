@@ -21,6 +21,9 @@ from optuna.visualization._utils import _is_log_scale
 from optuna.visualization._utils import _make_hovertext
 
 
+pytestmark = pytest.mark.optional
+
+
 def test_is_log_scale() -> None:
     study = create_study()
     study.add_trial(

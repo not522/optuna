@@ -25,6 +25,9 @@ from optuna.visualization._terminator_improvement import _get_y_range
 from optuna.visualization._terminator_improvement import _ImprovementInfo
 
 
+pytestmark = pytest.mark.optional
+
+
 parametrize_plot_terminator_improvement = pytest.mark.parametrize(
     "plot_terminator_improvement", [plotly_plot_terminator_improvement]
 )

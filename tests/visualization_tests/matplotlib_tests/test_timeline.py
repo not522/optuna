@@ -9,6 +9,9 @@ from optuna.visualization.matplotlib._timeline import plot_timeline
 from tests.visualization_tests.test_timeline import _create_study
 
 
+pytestmark = pytest.mark.optional
+
+
 @pytest.mark.parametrize(
     "trial_states_list",
     [
