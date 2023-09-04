@@ -262,7 +262,8 @@ class TPESampler(BaseSampler):
         self._gamma = gamma
 
         self._warn_independent_sampling = warn_independent_sampling
-        self._rng = np.random.RandomState(seed)
+        self._seed = seed
+        self._rng: np.random.RandomState | None = None
         self._random_sampler = RandomSampler(seed=seed)
 
         self._multivariate = multivariate
@@ -307,6 +308,8 @@ class TPESampler(BaseSampler):
             )
 
     def reseed_rng(self) -> None:
+        if self._rng is None:
+            self._rng = np.random.RandomState(self._seed)
         self._rng.seed()
         self._random_sampler.reseed_rng()
 
@@ -451,6 +454,7 @@ class TPESampler(BaseSampler):
         else:
             mpe_below = _ParzenEstimator(below, search_space, self._parzen_estimator_parameters)
         mpe_above = _ParzenEstimator(above, search_space, self._parzen_estimator_parameters)
+        assert self._rng is not None
         samples_below = mpe_below.sample(self._rng, self._n_ei_candidates)
         log_likelihoods_below = mpe_below.log_pdf(samples_below)
         log_likelihoods_above = mpe_above.log_pdf(samples_below)
@@ -527,6 +531,11 @@ class TPESampler(BaseSampler):
             "gamma": hyperopt_default_gamma,
             "weights": default_weights,
         }
+
+    def before_trial(self, study: Study, trial: FrozenTrial) -> None:
+        if self._rng is None:
+            self._rng = np.random.RandomState(self._seed)
+        self._random_sampler.before_trial(study, trial)
 
     def after_trial(
         self,

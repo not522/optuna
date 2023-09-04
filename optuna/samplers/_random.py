@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -39,9 +41,16 @@ class RandomSampler(BaseSampler):
     """
 
     def __init__(self, seed: Optional[int] = None) -> None:
-        self._rng = numpy.random.RandomState(seed)
+        self._seed = seed
+        self._rng: numpy.random.RandomState | None = None
+
+    def before_trial(self, study: Study, trial: FrozenTrial) -> None:
+        if self._rng is None:
+            self._rng = numpy.random.RandomState(self._seed)
 
     def reseed_rng(self) -> None:
+        if self._rng is None:
+            self._rng = numpy.random.RandomState(self._seed)
         self._rng.seed()
 
     def infer_relative_search_space(
@@ -63,6 +72,7 @@ class RandomSampler(BaseSampler):
     ) -> Any:
         search_space = {param_name: param_distribution}
         trans = _SearchSpaceTransform(search_space)
+        assert self._rng is not None
         trans_params = self._rng.uniform(trans.bounds[:, 0], trans.bounds[:, 1])
 
         return trans.untransform(trans_params)[param_name]
