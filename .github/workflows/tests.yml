@@ -1,9 +1,7 @@
 name: Tests
 
 on:
-  push:
-    branches:
-      - master
+  push: {}
   pull_request: {}
   schedule:
     - cron: '0 23 * * SUN-THU'
@@ -14,13 +12,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - id: set-matrix
+      run: echo "::set-output name=matrix::['3.7', '3.8', '3.9', '3.10', '3.11']"
+
   tests:
+    needs: generate-matrix
+
     if: (github.event_name == 'schedule' && github.repository == 'optuna/optuna') || (github.event_name != 'schedule')
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
+        python-version: ${{fromJson(needs.generate-matrix.outputs.matrix)}}
 
     services:
       redis:
