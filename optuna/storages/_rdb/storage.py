@@ -307,11 +307,11 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
             attribute = models.StudyUserAttributeModel.find_by_study_and_key(study, key, session)
             if attribute is None:
                 attribute = models.StudyUserAttributeModel(
-                    study_id=study_id, key=key, value_json=json.dumps(value)
+                    study_id=study_id, key=key, value_json=value
                 )
                 session.add(attribute)
             else:
-                attribute.value_json = json.dumps(value)
+                attribute.value_json = value
 
     def set_study_system_attr(self, study_id: int, key: str, value: JSONSerializable) -> None:
         with _create_scoped_session(self.scoped_session, True) as session:
@@ -319,11 +319,11 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
             attribute = models.StudySystemAttributeModel.find_by_study_and_key(study, key, session)
             if attribute is None:
                 attribute = models.StudySystemAttributeModel(
-                    study_id=study_id, key=key, value_json=json.dumps(value)
+                    study_id=study_id, key=key, value_json=value
                 )
                 session.add(attribute)
             else:
-                attribute.value_json = json.dumps(value)
+                attribute.value_json = value
 
     def get_study_id_from_name(self, study_name: str) -> int:
         with _create_scoped_session(self.scoped_session) as session:
@@ -351,7 +351,7 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
             # Ensure that that study exists.
             models.StudyModel.find_or_raise_by_id(study_id, session)
             attributes = models.StudyUserAttributeModel.where_study_id(study_id, session)
-            user_attrs = {attr.key: json.loads(attr.value_json) for attr in attributes}
+            user_attrs = {attr.key: attr.value_json for attr in attributes}
 
         return user_attrs
 
@@ -360,7 +360,7 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
             # Ensure that that study exists.
             models.StudyModel.find_or_raise_by_id(study_id, session)
             attributes = models.StudySystemAttributeModel.where_study_id(study_id, session)
-            system_attrs = {attr.key: json.loads(attr.value_json) for attr in attributes}
+            system_attrs = {attr.key: attr.value_json for attr in attributes}
 
         return system_attrs
 
@@ -370,7 +370,7 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
             models.TrialModel.find_or_raise_by_id(trial_id, session)
 
             attributes = models.TrialUserAttributeModel.where_trial_id(trial_id, session)
-            user_attrs = {attr.key: json.loads(attr.value_json) for attr in attributes}
+            user_attrs = {attr.key: attr.value_json for attr in attributes}
 
         return user_attrs
 
@@ -380,7 +380,7 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
             models.TrialModel.find_or_raise_by_id(trial_id, session)
 
             attributes = models.TrialSystemAttributeModel.where_trial_id(trial_id, session)
-            system_attrs = {attr.key: json.loads(attr.value_json) for attr in attributes}
+            system_attrs = {attr.key: attr.value_json for attr in attributes}
 
         return system_attrs
 
@@ -417,8 +417,8 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
                         study_name=study.study_name,
                         direction=None,
                         directions=directions,
-                        user_attrs={i.key: json.loads(i.value_json) for i in user_attrs},
-                        system_attrs={i.key: json.loads(i.value_json) for i in system_attrs},
+                        user_attrs={i.key: i.value_json for i in user_attrs},
+                        system_attrs={i.key: i.value_json for i in system_attrs},
                         study_id=study.study_id,
                     )
                 )
@@ -729,11 +729,11 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
         attribute = models.TrialUserAttributeModel.find_by_trial_and_key(trial, key, session)
         if attribute is None:
             attribute = models.TrialUserAttributeModel(
-                trial_id=trial_id, key=key, value_json=json.dumps(value)
+                trial_id=trial_id, key=key, value_json=value
             )
             session.add(attribute)
         else:
-            attribute.value_json = json.dumps(value)
+            attribute.value_json = value
 
     def set_trial_system_attr(self, trial_id: int, key: str, value: JSONSerializable) -> None:
         with _create_scoped_session(self.scoped_session, True) as session:
@@ -748,11 +748,11 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
         attribute = models.TrialSystemAttributeModel.find_by_trial_and_key(trial, key, session)
         if attribute is None:
             attribute = models.TrialSystemAttributeModel(
-                trial_id=trial_id, key=key, value_json=json.dumps(value)
+                trial_id=trial_id, key=key, value_json=value
             )
             session.add(attribute)
         else:
-            attribute.value_json = json.dumps(value)
+            attribute.value_json = value
 
     def get_trial_id_from_study_id_trial_number(self, study_id: int, trial_number: int) -> int:
         with _create_scoped_session(self.scoped_session) as session:
@@ -888,9 +888,9 @@ class RDBStorage(BaseStorage, BaseHeartbeat):
                 p.param_name: distributions.json_to_distribution(p.distribution_json)
                 for p in params
             },
-            user_attrs={attr.key: json.loads(attr.value_json) for attr in trial.user_attributes},
+            user_attrs={attr.key: attr.value_json for attr in trial.user_attributes},
             system_attrs={
-                attr.key: json.loads(attr.value_json) for attr in trial.system_attributes
+                attr.key: attr.value_json for attr in trial.system_attributes
             },
             intermediate_values={
                 v.step: models.TrialIntermediateValueModel.stored_repr_to_intermediate_value(

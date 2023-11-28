@@ -15,6 +15,7 @@ from sqlalchemy import Float
 from sqlalchemy import ForeignKey
 from sqlalchemy import func
 from sqlalchemy import Integer
+from sqlalchemy import JSON
 from sqlalchemy import orm
 from sqlalchemy import String
 from sqlalchemy import Text
@@ -114,7 +115,7 @@ class StudyUserAttributeModel(BaseModel):
     study_user_attribute_id = _Column(Integer, primary_key=True)
     study_id = _Column(Integer, ForeignKey("studies.study_id"))
     key = _Column(String(MAX_INDEXED_STRING_LENGTH))
-    value_json = _Column(Text())
+    value_json = _Column(JSON)
 
     study = orm.relationship(
         StudyModel, backref=orm.backref("user_attributes", cascade="all, delete-orphan")
@@ -146,7 +147,7 @@ class StudySystemAttributeModel(BaseModel):
     study_system_attribute_id = _Column(Integer, primary_key=True)
     study_id = _Column(Integer, ForeignKey("studies.study_id"))
     key = _Column(String(MAX_INDEXED_STRING_LENGTH))
-    value_json = _Column(Text())
+    value_json = _Column(JSON)
 
     study = orm.relationship(
         StudyModel, backref=orm.backref("system_attributes", cascade="all, delete-orphan")
@@ -285,7 +286,7 @@ class TrialUserAttributeModel(BaseModel):
     trial_user_attribute_id = _Column(Integer, primary_key=True)
     trial_id = _Column(Integer, ForeignKey("trials.trial_id"))
     key = _Column(String(MAX_INDEXED_STRING_LENGTH))
-    value_json = _Column(Text())
+    value_json = _Column(JSON)
 
     trial = orm.relationship(
         TrialModel, backref=orm.backref("user_attributes", cascade="all, delete-orphan")
@@ -317,7 +318,7 @@ class TrialSystemAttributeModel(BaseModel):
     trial_system_attribute_id = _Column(Integer, primary_key=True)
     trial_id = _Column(Integer, ForeignKey("trials.trial_id"))
     key = _Column(String(MAX_INDEXED_STRING_LENGTH))
-    value_json = _Column(Text())
+    value_json = _Column(JSON)
 
     trial = orm.relationship(
         TrialModel, backref=orm.backref("system_attributes", cascade="all, delete-orphan")
