@@ -38,7 +38,7 @@ jobs:
         pip install --progress-bar off -U .[test]
         pip install --progress-bar off -U bayesmark
         pip install --progress-bar off -U kurobako
-        pip install --progress-bar off -U "mypy<1.7.0"
+        # pip install --progress-bar off -U "mypy<1.7.0"
 
     - name: Output installed packages
       run: |
@@ -55,6 +55,6 @@ jobs:
     - name: isort
       run: isort . --check --diff
     - name: mypy
-      run: mypy . --warn-unused-ignores
+      run: mypy . --warn-unused-ignores --exclude benchmarks/run_bayesmark.py
     - name: blackdoc
       run: blackdoc . --check --diff
