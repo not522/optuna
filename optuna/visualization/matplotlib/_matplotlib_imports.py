@@ -14,6 +14,7 @@ with try_import() as _imports:
     from matplotlib.colors import Colormap
     from matplotlib.contour import ContourSet
     from matplotlib.figure import Figure
+    from mpl_toolkits.mplot3d import Axes3D
 
     # TODO(ytknzw): Set precise version.
     if version.parse(matplotlib_version) < version.parse("3.0.0"):
@@ -31,6 +32,7 @@ __all__ = [
     "matplotlib_version",
     "plt",
     "Axes",
+    "Axes3D",
     "LineCollection",
     "PathCollection",
     "Colormap",

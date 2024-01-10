@@ -113,6 +113,7 @@ def _get_timeline_plot(info: _TimelineInfo) -> "Axes":
 
     ax.set_xlim(right=complete_time + margin, left=start_time - margin)
     ax.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
-    ax.xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%H:%M:%S"))
+    date_formatter = matplotlib.dates.DateFormatter("%H:%M:%S")  # type: ignore[attr-defined]
+    ax.xaxis.set_major_formatter(date_formatter)
     plt.gcf().autofmt_xdate()
     return ax
