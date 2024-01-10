@@ -5,7 +5,6 @@ from typing import Callable
 from typing import Dict
 from typing import Optional
 from typing import Sequence
-from typing import Union
 import warnings
 
 import numpy
