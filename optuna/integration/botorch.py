@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -128,7 +130,7 @@ def logei_candidates_func(
         assert train_con is not None
         train_y = torch.cat([train_obj, train_con], dim=-1)
 
-        is_feas = (train_con <= 0).all(dim=-1)
+        is_feas = (train_con <= 0).all(dim=-1)  # type: ignore[attr-defined]
         train_obj_feas = train_obj[is_feas]
 
         if train_obj_feas.numel() == 0:
@@ -225,7 +227,7 @@ def qei_candidates_func(
     if train_con is not None:
         train_y = torch.cat([train_obj, train_con], dim=-1)
 
-        is_feas = (train_con <= 0).all(dim=-1)
+        is_feas = (train_con <= 0).all(dim=-1)  # type: ignore[attr-defined]
         train_obj_feas = train_obj[is_feas]
 
         if train_obj_feas.numel() == 0:
@@ -376,7 +378,7 @@ def qehvi_candidates_func(
     if train_con is not None:
         train_y = torch.cat([train_obj, train_con], dim=-1)
 
-        is_feas = (train_con <= 0).all(dim=-1)
+        is_feas = (train_con <= 0).all(dim=-1)  # type: ignore[attr-defined]
         train_obj_feas = train_obj[is_feas]
 
         n_constraints = train_con.size(1)
@@ -843,13 +845,9 @@ class BoTorchSampler(BaseSampler):
 
         trans = _SearchSpaceTransform(search_space)
         n_objectives = len(study.directions)
-        values: Union[numpy.ndarray, torch.Tensor] = numpy.empty(
-            (n_trials, n_objectives), dtype=numpy.float64
-        )
-        params: Union[numpy.ndarray, torch.Tensor]
-        con: Optional[Union[numpy.ndarray, torch.Tensor]] = None
-        bounds: Union[numpy.ndarray, torch.Tensor] = trans.bounds
+        values = numpy.empty((n_trials, n_objectives), dtype=numpy.float64)
         params = numpy.empty((n_trials, trans.bounds.shape[0]), dtype=numpy.float64)
+        con: numpy.ndarray | None = None
         for trial_idx, trial in enumerate(trials):
             if trial.state == TrialState.COMPLETE:
                 params[trial_idx] = trans.transform(trial.params)
@@ -898,28 +896,28 @@ class BoTorchSampler(BaseSampler):
                     "constraints. Constraints passed to `candidates_func` will contain NaN."
                 )
 
-        values = torch.from_numpy(values).to(self._device)
-        params = torch.from_numpy(params).to(self._device)
+        values_tensor = torch.from_numpy(values).to(self._device)
+        params_tensor = torch.from_numpy(params).to(self._device)
         if con is not None:
-            con = torch.from_numpy(con).to(self._device)
-        bounds = torch.from_numpy(bounds).to(self._device)
-
-        if con is not None:
-            if con.dim() == 1:
-                con.unsqueeze_(-1)
+            con_tensor = torch.from_numpy(con).to(self._device)
+            if con_tensor.dim() == 1:
+                con_tensor.unsqueeze_(-1)
+        else:
+            con_tensor = None
+        bounds = torch.from_numpy(trans.bounds).to(self._device)
         bounds.transpose_(0, 1)
 
         if self._candidates_func is None:
             self._candidates_func = _get_default_candidates_func(
                 n_objectives=n_objectives,
-                has_constraint=con is not None,
+                has_constraint=con_tensor is not None,
                 consider_running_trials=self._consider_running_trials,
             )
 
-        completed_values = values[:n_completed_trials]
-        completed_params = params[:n_completed_trials]
+        completed_values = values_tensor[:n_completed_trials]
+        completed_params = params_tensor[:n_completed_trials]
         if self._consider_running_trials:
-            running_params = params[n_completed_trials:]
+            running_params = params_tensor[n_completed_trials:]
             running_params = running_params[~torch.isnan(running_params).any(dim=1)]
         else:
             running_params = None
@@ -929,7 +927,7 @@ class BoTorchSampler(BaseSampler):
             # `SobolQMCNormalSampler`'s constructor has a `seed` argument, but its behavior is
             # deterministic when the BoTorch's seed is fixed.
             candidates = self._candidates_func(
-                completed_params, completed_values, con, bounds, running_params
+                completed_params, completed_values, con_tensor, bounds, running_params
             )
             if self._seed is not None:
                 self._seed += 1
