@@ -1,0 +1,25 @@
+version: '3.9'
+
+services:
+  mysql:
+    image: mysql:8.2.0
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+      MYSQL_DATABASE: optunatest
+      MYSQL_USER: user
+      MYSQL_PASSWORD: test
+    restart: always
+    networks:
+      - mysql-network
+
+  cli:
+    image: mysql:8.2.0
+    networks:
+      - mysql-network
+    command: mysql -h 127.0.0.1 -uuser -ppassword db
+
+networks:
+  mysql-network:
+    driver: bridge
