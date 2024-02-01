@@ -174,6 +174,7 @@ class JournalFileStorage(BaseJournalLogStorage):
 
             last_decode_error = None
             for log_number, line in enumerate(f, start=log_number_start):
+                print(repr(line))
                 byte_len = len(line)
                 remaining_log_size -= byte_len
                 if remaining_log_size < 0:
