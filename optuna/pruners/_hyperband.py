@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import binascii
 from collections.abc import Container
+from collections.abc import Sequence
 import math
+from typing import Any
 
 import optuna
 from optuna import logging
+from optuna.distribution import BaseDistribution
 from optuna.pruners._base import BasePruner
 from optuna.pruners._successive_halving import SuccessiveHalvingPruner
+from optuna.study import Study
+from optuna.trial import FrozenTrial
 from optuna.trial._state import TrialState
 
 
@@ -141,6 +146,8 @@ class HyperbandPruner(BasePruner):
         max_resource: str | int = "auto",
         reduction_factor: int = 3,
         bootstrap_count: int = 0,
+        *,
+        sampler: optuna.samplers.BaseSampler | None = None,
     ) -> None:
         self._min_resource = min_resource
         self._max_resource = max_resource
@@ -150,6 +157,8 @@ class HyperbandPruner(BasePruner):
         self._total_trial_allocation_budget = 0
         self._trial_allocation_budgets: list[int] = []
         self._n_brackets: int | None = None
+        assert sampler is not None
+        self._sampler = sampler
 
         if not isinstance(self._max_resource, int) and self._max_resource != "auto":
             raise ValueError(
@@ -316,3 +325,65 @@ class HyperbandPruner(BasePruner):
                     return object.__getattribute__(self, attr_name)
 
         return _BracketStudy(study, self, bracket_id)
+
+    @property
+    def sampler(self) -> optuna.samplers.BaseSampler:
+        class SamplerWithFilter(optuna.samplers.BaseSampler):
+            def __init__(
+                self, pruner: HyperbandPruner, original_sampler: optuna.samplers.BaseSampler
+            ) -> None:
+                self._pruner = pruner
+                self._original_sampler = original_sampler
+
+            def __getattr__(self, attr_name: str) -> Any:
+                return getattr(self._original_sample, attr_name)
+
+            def infer_relative_search_space(
+                self, study: Study, trial: FrozenTrial
+            ) -> dict[str, BaseDistribution]:
+                filtered_study = self._pruner._create_bracket_study(
+                    study, self._pruner._get_bracket_id(study, trial)
+                )
+                return self._original_sampler.infer_relative_search_space(filtered_study, trial)
+
+            def sample_relative(
+                self, study: Study, trial: FrozenTrial, search_space: dict[str, BaseDistribution]
+            ) -> dict[str, Any]:
+                filtered_study = self._pruner._create_bracket_study(
+                    study, self._pruner._get_bracket_id(study, trial)
+                )
+                return self._original_sampler.sample_relative(filtered_study, trial, search_space)
+
+            def sample_independent(
+                self,
+                study: Study,
+                trial: FrozenTrial,
+                param_name: str,
+                param_distribution: BaseDistribution,
+            ) -> Any:
+                filtered_study = self._pruner._create_bracket_study(
+                    study, self._pruner._get_bracket_id(study, trial)
+                )
+                return self._original_sampler.sample_independent(
+                    filtered_study, trial, param_name, param_distribution
+                )
+
+            def before_trial(self, study: Study, trial: FrozenTrial) -> None:
+                filtered_study = self._pruner._create_bracket_study(
+                    study, self._pruner._get_bracket_id(study, trial)
+                )
+                return self._original_sampler.before_trial(filtered_study, trial)
+
+            def after_trial(
+                self,
+                study: Study,
+                trial: FrozenTrial,
+                state: TrialState,
+                values: Sequence[float] | None,
+            ) -> None:
+                filtered_study = self._pruner._create_bracket_study(
+                    study, self._pruner._get_bracket_id(study, trial)
+                )
+                return self._original_sampler.after_trial(filtered_study, trial, state, values)
+
+        return SamplerWithFilter(pruner=self, original_sampler=self._sampler)

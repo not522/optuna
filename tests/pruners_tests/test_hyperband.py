@@ -18,11 +18,15 @@ EXPECTED_N_TRIALS_PER_BRACKET = 10
 
 
 def test_hyperband_pruner_intermediate_values() -> None:
+    sampler = optuna.samplers.RandomSampler()
     pruner = optuna.pruners.HyperbandPruner(
-        min_resource=MIN_RESOURCE, max_resource=MAX_RESOURCE, reduction_factor=REDUCTION_FACTOR
+        min_resource=MIN_RESOURCE,
+        max_resource=MAX_RESOURCE,
+        reduction_factor=REDUCTION_FACTOR,
+        sampler=sampler,
     )
 
-    study = optuna.study.create_study(sampler=optuna.samplers.RandomSampler(), pruner=pruner)
+    study = optuna.study.create_study(sampler=pruner.sampler, pruner=pruner)
 
     def objective(trial: optuna.trial.Trial) -> float:
         for i in range(N_REPORTS):
@@ -37,10 +41,14 @@ def test_hyperband_pruner_intermediate_values() -> None:
 
 
 def test_bracket_study() -> None:
+    sampler = optuna.samplers.RandomSampler()
     pruner = optuna.pruners.HyperbandPruner(
-        min_resource=MIN_RESOURCE, max_resource=MAX_RESOURCE, reduction_factor=REDUCTION_FACTOR
+        min_resource=MIN_RESOURCE,
+        max_resource=MAX_RESOURCE,
+        reduction_factor=REDUCTION_FACTOR,
+        sampler=sampler,
     )
-    study = optuna.study.create_study(sampler=optuna.samplers.RandomSampler(), pruner=pruner)
+    study = optuna.study.create_study(sampler=pruner.sampler, pruner=pruner)
     bracket_study = pruner._create_bracket_study(study, 0)
 
     with pytest.raises(AttributeError):
@@ -69,10 +77,11 @@ def test_bracket_study() -> None:
 
 
 def test_hyperband_max_resource_is_auto() -> None:
+    sampler = optuna.samplers.RandomSampler()
     pruner = optuna.pruners.HyperbandPruner(
-        min_resource=MIN_RESOURCE, reduction_factor=REDUCTION_FACTOR
+        min_resource=MIN_RESOURCE, reduction_factor=REDUCTION_FACTOR, sampler=sampler
     )
-    study = optuna.study.create_study(sampler=optuna.samplers.RandomSampler(), pruner=pruner)
+    study = optuna.study.create_study(sampler=pruner.sampler, pruner=pruner)
 
     def objective(trial: optuna.trial.Trial) -> float:
         for i in range(N_REPORTS):
@@ -89,7 +98,9 @@ def test_hyperband_max_resource_is_auto() -> None:
 
 def test_hyperband_max_resource_value_error() -> None:
     with pytest.raises(ValueError):
-        _ = optuna.pruners.HyperbandPruner(max_resource="not_appropriate")
+        _ = optuna.pruners.HyperbandPruner(
+            max_resource="not_appropriate", sampler=optuna.samplers.RandomSampler()
+        )
 
 
 @pytest.mark.parametrize(
@@ -128,12 +139,13 @@ def test_hyperband_filter_study(
                 min_resource=MIN_RESOURCE,
                 max_resource=MAX_RESOURCE,
                 reduction_factor=REDUCTION_FACTOR,
+                sampler=sampler,
             )
             with mock.patch(
                 "optuna.samplers.{}.{}".format(sampler.__class__.__name__, method_name),
                 wraps=getattr(sampler, method_name),
             ) as method_mock:
-                study = optuna.study.create_study(sampler=sampler, pruner=pruner)
+                study = optuna.study.create_study(sampler=pruner.sampler, pruner=pruner)
                 study.optimize(objective, n_trials=n_trials)
                 args = method_mock.call_args[0]
                 study = args[0]
@@ -206,26 +218,34 @@ def test_hyperband_no_call_of_filter_study_in_should_prune(
 
     sampler = sampler_init_func()
     pruner = optuna.pruners.HyperbandPruner(
-        min_resource=MIN_RESOURCE, max_resource=MAX_RESOURCE, reduction_factor=REDUCTION_FACTOR
+        min_resource=MIN_RESOURCE,
+        max_resource=MAX_RESOURCE,
+        reduction_factor=REDUCTION_FACTOR,
+        sampler=sampler,
     )
-    study = optuna.study.create_study(sampler=sampler, pruner=pruner)
+    study = optuna.study.create_study(sampler=pruner.sampler, pruner=pruner)
     study.optimize(objective, n_trials=10)
 
 
 def test_incompatibility_between_bootstrap_count_and_auto_max_resource() -> None:
     with pytest.raises(ValueError):
-        optuna.pruners.HyperbandPruner(max_resource="auto", bootstrap_count=1)
+        optuna.pruners.HyperbandPruner(
+            max_resource="auto", bootstrap_count=1, sampler=optuna.samplers.RandomSampler()
+        )
 
 
 def test_hyperband_pruner_and_grid_sampler() -> None:
-    pruner = optuna.pruners.HyperbandPruner(
-        min_resource=MIN_RESOURCE, max_resource=MAX_RESOURCE, reduction_factor=REDUCTION_FACTOR
-    )
-
     search_space = {"x": [-50, 0, 50], "y": [-99, 0, 99]}
     sampler = optuna.samplers.GridSampler(search_space)
 
-    study = optuna.study.create_study(sampler=sampler, pruner=pruner)
+    pruner = optuna.pruners.HyperbandPruner(
+        min_resource=MIN_RESOURCE,
+        max_resource=MAX_RESOURCE,
+        reduction_factor=REDUCTION_FACTOR,
+        sampler=sampler,
+    )
+
+    study = optuna.study.create_study(sampler=pruner.sampler, pruner=pruner)
 
     def objective(trial: optuna.trial.Trial) -> float:
         for i in range(N_REPORTS):
