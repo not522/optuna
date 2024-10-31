@@ -22,7 +22,7 @@ jobs:
     # TODO(c-bata): Use the newer Python version
     - uses: actions/setup-python@v5
       with:
-        python-version: 3.8
+        python-version: 3.12
 
     # note (crcrpar): We've not updated tutorial frequently enough so far thus
     # it'd be okay to discard cache by any small changes including typo fix under tutorial directory.
