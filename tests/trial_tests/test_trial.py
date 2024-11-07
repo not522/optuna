@@ -103,7 +103,7 @@ def test_check_distribution_suggest_loguniform(storage_mode: str) -> None:
             trial.suggest_loguniform("x", 10, 30)
 
         # We expect exactly one warning (not counting ones caused by deprecation).
-        assert len([r for r in record if r.category is not FutureWarning]) == 1
+        assert len([r for r in record if r.category is not FutureWarning]) == 1, [r.message for r in record if r.category is not FutureWarning]
 
         with pytest.raises(ValueError):
             trial.suggest_int("x", 10, 20)
