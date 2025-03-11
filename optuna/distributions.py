@@ -5,6 +5,7 @@ from collections.abc import Sequence
 import copy
 import decimal
 import json
+import math
 from numbers import Real
 from typing import Any
 from typing import cast
@@ -193,7 +194,7 @@ class FloatDistribution(BaseDistribution):
                 "float-castable value is expected."
             ) from e
 
-        if np.isnan(internal_repr):
+        if math.isnan(internal_repr):
             raise ValueError(f"`{param_value_in_external_repr}` is invalid value.")
         if self.log and internal_repr <= 0.0:
             raise ValueError(
@@ -384,7 +385,7 @@ class IntDistribution(BaseDistribution):
                 "float-castable value is expected."
             ) from e
 
-        if np.isnan(internal_repr):
+        if math.isnan(internal_repr):
             raise ValueError(f"`{param_value_in_external_repr}` is invalid value.")
         if self.log and internal_repr <= 0.0:
             raise ValueError(
