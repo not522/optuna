@@ -308,7 +308,8 @@ def test_set_trial_param_for_floats() -> None:
     trial_id = storage.create_new_trial(study_id)
 
     for key, value in FLOAT_ATTRS.items():
-        if math.isnan(value):
+        # MySQL cannot handle infinities.
+        if not math.isfinite(value):
             continue
         param_name = "float_" + key
         float_dist = FloatDistribution(low=value, high=value)
