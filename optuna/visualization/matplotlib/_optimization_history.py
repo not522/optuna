@@ -62,7 +62,9 @@ def plot_optimization_history(
 
     _imports.check()
 
-    info_list = _get_optimization_history_info_list(study, target, target_name, error_bar)
+    info_list = []
+    for s in study:
+        info_list.append(_get_optimization_history_info_list(s, target, target_name, error_bar))
     return _get_optimization_history_plot(info_list, target_name)
 
 
@@ -73,11 +75,19 @@ def _get_optimization_history_plot(
     # Set up the graph style.
     plt.style.use("ggplot")  # Use ggplot style sheet for similar outputs to plotly.
     _, ax = plt.subplots()
-    ax.set_title("Optimization History Plot")
+    # ax.set_title("Optimization History Plot")
     ax.set_xlabel("Trial")
     ax.set_ylabel(target_name)
-    cmap = plt.get_cmap("tab10")  # Use tab10 colormap for similar outputs to plotly.
 
+    for i, info in enumerate(info_list):
+        _plot(ax, info, i)
+
+    plt.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
+    return ax
+
+
+def _plot(ax, info_list, ind):
+    cmap = plt.get_cmap("tab10")  # Use tab10 colormap for similar outputs to plotly.
     for i, (trial_numbers, values_info, best_values_info) in enumerate(info_list):
         if values_info.stds is not None:
             if (
@@ -91,6 +101,7 @@ def _get_optimization_history_plot(
                 )
             feasible_trial_numbers = trial_numbers
             feasible_trial_values = values_info.values
+            """
             plt.errorbar(
                 x=feasible_trial_numbers,
                 y=feasible_trial_values,
@@ -99,6 +110,7 @@ def _get_optimization_history_plot(
                 fmt="o",
                 color="tab:blue",
             )
+            """
             infeasible_trial_numbers: list[int] = []
             infeasible_trial_values: list[float] = []
         else:
@@ -114,6 +126,7 @@ def _get_optimization_history_plot(
             infeasible_trial_values = []
             for num in infeasible_trial_numbers:
                 infeasible_trial_values.append(values_info.values[num])
+        """
         ax.scatter(
             x=feasible_trial_numbers,
             y=feasible_trial_values,
@@ -121,14 +134,15 @@ def _get_optimization_history_plot(
             alpha=1,
             label=values_info.label_name,
         )
+        """
 
         if best_values_info is not None:
             ax.plot(
                 trial_numbers,
                 best_values_info.values,
-                color=cmap(3) if len(info_list) == 1 else cmap(2 * i + 1),
+                color=("red" if ind == 0 else "blue"),
                 alpha=0.5,
-                label=best_values_info.label_name,
+                label=("master" if ind == 0 else "fix"),
             )
             if best_values_info.stds is not None:
                 lower = np.array(best_values_info.values) - np.array(best_values_info.stds)
@@ -137,14 +151,12 @@ def _get_optimization_history_plot(
                     x=trial_numbers,
                     y1=lower,
                     y2=upper,
-                    color="tab:red",
+                    color=("red" if ind == 0 else "blue"),
                     alpha=0.4,
                 )
-            ax.legend()
+            # ax.legend()
         ax.scatter(
             x=infeasible_trial_numbers,
             y=infeasible_trial_values,
             color="#cccccc",
         )
-    plt.legend(bbox_to_anchor=(1.05, 1.0), loc="upper left")
-    return ax
