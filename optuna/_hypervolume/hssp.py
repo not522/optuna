@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import heapq
 import math
 
 import numpy as np
@@ -140,6 +141,46 @@ def _solve_hssp_on_unique_loss_vals(
     return rank_i_indices[selected_indices]
 
 
+def _solve_hssp_on_unique_loss_vals2(
+    rank_i_loss_vals: np.ndarray,
+    rank_i_indices: np.ndarray,
+    subset_size: int,
+    reference_point: np.ndarray,
+) -> np.ndarray:
+    if not np.isfinite(reference_point).all():
+        return rank_i_indices[:subset_size]
+    if rank_i_indices.size == subset_size:
+        return rank_i_indices
+    if rank_i_loss_vals.shape[-1] == 2:
+        return _solve_hssp_2d(rank_i_loss_vals, rank_i_indices, subset_size, reference_point)
+
+    assert subset_size < rank_i_indices.size
+    # The following logic can be used for non-unique rank_i_loss_vals as well.
+    n_solutions, n_objectives = rank_i_loss_vals.shape
+    selected_indices = np.zeros(subset_size, dtype=int)
+    selected_vecs = np.empty((subset_size, n_objectives))
+    k = 0
+    heap = []
+    for i in range(n_solutions):
+        heapq.heappush(heap, (-np.prod(reference_point - rank_i_loss_vals[i]), i, 0))
+    while k < subset_size:
+        contrib, i, ki = heapq.heappop(heap)
+        if ki == k:
+            selected_indices[k] = rank_i_indices[i]
+            selected_vecs[k] = rank_i_loss_vals[i]
+            k += 1
+        else:
+            contrib += np.prod(reference_point - np.maximum(rank_i_loss_vals[i], selected_vecs[ki]))
+            if ki > 0:
+                vecs = selected_vecs[:ki]
+                vecs = np.maximum(vecs, rank_i_loss_vals[i])
+                vecs = np.maximum(vecs, selected_vecs[ki])
+                contrib -= compute_hypervolume(vecs, reference_point)
+            heapq.heappush(heap, (contrib, i, ki + 1))
+
+    return selected_indices
+
+
 def _solve_hssp(
     rank_i_loss_vals: np.ndarray,
     rank_i_indices: np.ndarray,
@@ -170,7 +211,18 @@ def _solve_hssp(
         chosen[duplicated_indices[: subset_size - n_unique]] = True
         return rank_i_indices[chosen]
 
+    """
     selected_indices_of_unique_loss_vals = _solve_hssp_on_unique_loss_vals(
+        rank_i_unique_loss_vals, indices_of_unique_loss_vals, subset_size, reference_point
+    )
+    selected_indices_of_unique_loss_vals2 = _solve_hssp_on_unique_loss_vals2(
+        rank_i_unique_loss_vals, indices_of_unique_loss_vals, subset_size, reference_point
+    )
+    if not np.all(selected_indices_of_unique_loss_vals == selected_indices_of_unique_loss_vals2):
+        print(selected_indices_of_unique_loss_vals, selected_indices_of_unique_loss_vals2)
+    assert np.all(selected_indices_of_unique_loss_vals == selected_indices_of_unique_loss_vals2)
+    """
+    selected_indices_of_unique_loss_vals = _solve_hssp_on_unique_loss_vals2(
         rank_i_unique_loss_vals, indices_of_unique_loss_vals, subset_size, reference_point
     )
     return rank_i_indices[selected_indices_of_unique_loss_vals]

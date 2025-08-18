@@ -100,8 +100,15 @@ def _compute_exclusive_hv(
     #   if limited_sols is not unique or not lexsorted as long as limited_sols is quasi-lexsorted,
     #   which is guaranteed. As mentioned earlier, if all ``False`` in on_front is correct, the
     #   result of this function does not change.
-    on_front = _is_pareto_front(limited_sols, assume_unique_lexsorted=True)
-    return inclusive_hv - _compute_hv(limited_sols[on_front], reference_point)
+    if limited_sols.shape[0] <= 100:
+        a = limited_sols
+        b = np.any(a[:, np.newaxis, :] < a[np.newaxis, :, :], axis=2) | np.all(a[:, np.newaxis, :] == a[np.newaxis, :, :], axis=2)
+        b = np.all(b, axis=1)
+        limited_sols = limited_sols[b]
+    else:
+        on_front = _is_pareto_front(limited_sols, assume_unique_lexsorted=True)
+        limited_sols = limited_sols[on_front]
+    return inclusive_hv - _compute_hv(limited_sols, reference_point)
 
 
 def compute_hypervolume(
@@ -151,9 +158,15 @@ def compute_hypervolume(
         return 0.0
 
     if not assume_pareto:
-        unique_lexsorted_loss_vals = np.unique(loss_vals, axis=0)
-        on_front = _is_pareto_front(unique_lexsorted_loss_vals, assume_unique_lexsorted=True)
-        sorted_pareto_sols = unique_lexsorted_loss_vals[on_front]
+        if loss_vals.shape[0] <= 100:
+            a = loss_vals
+            b = np.any(a[:, np.newaxis, :] < a[np.newaxis, :, :], axis=2) | np.all(a[:, np.newaxis, :] == a[np.newaxis, :, :], axis=2)
+            b = np.all(b, axis=1)
+            sorted_pareto_sols = loss_vals[b]
+        else:
+            unique_lexsorted_loss_vals = np.unique(loss_vals, axis=0)
+            on_front = _is_pareto_front(unique_lexsorted_loss_vals, assume_unique_lexsorted=True)
+            sorted_pareto_sols = unique_lexsorted_loss_vals[on_front]
     else:
         # NOTE(nabenabe): The result of this function does not change both by
         # np.argsort(loss_vals[:, 0]) and np.unique(loss_vals, axis=0).
