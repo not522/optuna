@@ -93,48 +93,54 @@ class _MixtureOfProductDistribution(NamedTuple):
                 cum_probs[:, -1] = 1  # Avoid numerical errors.
                 ret[:, i] = np.sum(cum_probs < rnd_quantile[:, np.newaxis], axis=-1)
             elif isinstance(d, _BatchedTruncNormDistributions):
+                active_mus = d.mu[active_indices]
+                active_sigmas = d.sigma[active_indices]
                 ret[:, i] = _truncnorm.rvs(
-                    a=(d.low - d.mu[active_indices]) / d.sigma[active_indices],
-                    b=(d.high - d.mu[active_indices]) / d.sigma[active_indices],
-                    loc=d.mu[active_indices],
-                    scale=d.sigma[active_indices],
+                    a=(d.low - active_mus) / active_sigmas,
+                    b=(d.high - active_mus) / active_sigmas,
+                    loc=active_mus,
+                    scale=active_sigmas,
                     random_state=rng,
-                ).T
+                )
             elif isinstance(d, _BatchedTruncLogNormDistributions):
+                active_mus = d.mu[active_indices]
+                active_sigmas = d.sigma[active_indices]
                 ret[:, i] = np.exp(
                     _truncnorm.rvs(
-                        a=(np.log(d.low) - d.mu[active_indices]) / d.sigma[active_indices],
-                        b=(np.log(d.high) - d.mu[active_indices]) / d.sigma[active_indices],
-                        loc=d.mu[active_indices],
-                        scale=d.sigma[active_indices],
+                        a=(np.log(d.low) - active_mus) / active_sigmas,
+                        b=(np.log(d.high) - active_mus) / active_sigmas,
+                        loc=active_mus,
+                        scale=active_sigmas,
                         random_state=rng,
-                    ).T
+                    )
                 )
             elif isinstance(d, _BatchedDiscreteTruncNormDistributions):
-                ret[:, i] = _truncnorm.rvs(
-                    a=(d.low - d.step / 2 - d.mu[active_indices]) / d.sigma[active_indices],
-                    b=(d.high + d.step / 2 - d.mu[active_indices]) / d.sigma[active_indices],
-                    loc=d.mu[active_indices],
-                    scale=d.sigma[active_indices],
+                active_mus = d.mu[active_indices]
+                active_sigmas = d.sigma[active_indices]
+                samples = _truncnorm.rvs(
+                    a=(d.low - d.step / 2 - active_mus) / active_sigmas,
+                    b=(d.high + d.step / 2 - active_mus) / active_sigmas,
+                    loc=active_mus,
+                    scale=active_sigmas,
                     random_state=rng,
-                ).T
+                )
                 ret[:, i] = np.clip(
-                    d.low + np.round((ret[:, i] - d.low) / d.step) * d.step, d.low, d.high
+                    d.low + np.round((samples - d.low) / d.step) * d.step, d.low, d.high
                 )
             elif isinstance(d, _BatchedDiscreteTruncLogNormDistributions):
-                ret[:, i] = np.exp(
+                active_mus = d.mu[active_indices]
+                active_sigmas = d.sigma[active_indices]
+                samples = np.exp(
                     _truncnorm.rvs(
-                        a=(np.log(d.low - d.step / 2) - d.mu[active_indices])
-                        / d.sigma[active_indices],
-                        b=(np.log(d.high + d.step / 2) - d.mu[active_indices])
-                        / d.sigma[active_indices],
-                        loc=d.mu[active_indices],
-                        scale=d.sigma[active_indices],
+                        a=(np.log(d.low - d.step / 2) - active_mus) / active_sigmas,
+                        b=(np.log(d.high + d.step / 2) - active_mus) / active_sigmas,
+                        loc=active_mus,
+                        scale=active_sigmas,
                         random_state=rng,
-                    ).T
+                    )
                 )
                 ret[:, i] = np.clip(
-                    d.low + np.round((ret[:, i] - d.low) / d.step) * d.step, d.low, d.high
+                    d.low + np.round((samples - d.low) / d.step) * d.step, d.low, d.high
                 )
             else:
                 assert False
