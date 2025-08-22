@@ -10,9 +10,13 @@ from optuna.distributions import CategoricalChoiceType
 from optuna.distributions import CategoricalDistribution
 from optuna.distributions import FloatDistribution
 from optuna.distributions import IntDistribution
+from optuna.samplers._tpe.probability_distributions import (
+    _BatchedDiscreteTruncLogNormDistributions,
+)
 from optuna.samplers._tpe.probability_distributions import _BatchedCategoricalDistributions
 from optuna.samplers._tpe.probability_distributions import _BatchedDiscreteTruncNormDistributions
 from optuna.samplers._tpe.probability_distributions import _BatchedDistributions
+from optuna.samplers._tpe.probability_distributions import _BatchedTruncLogNormDistributions
 from optuna.samplers._tpe.probability_distributions import _BatchedTruncNormDistributions
 from optuna.samplers._tpe.probability_distributions import _MixtureOfProductDistribution
 
@@ -109,26 +113,10 @@ class _ParzenEstimator:
         return isinstance(dist, (FloatDistribution, IntDistribution)) and dist.log
 
     def _transform(self, samples_dict: dict[str, np.ndarray]) -> np.ndarray:
-        return np.array(
-            [
-                (
-                    np.log(samples_dict[param])
-                    if self._is_log(self._search_space[param])
-                    else samples_dict[param]
-                )
-                for param in self._search_space
-            ]
-        ).T
+        return np.array([samples_dict[param] for param in self._search_space]).T
 
     def _untransform(self, samples_array: np.ndarray) -> dict[str, np.ndarray]:
-        res = {
-            param: (
-                np.exp(samples_array[:, i])
-                if self._is_log(self._search_space[param])
-                else samples_array[:, i]
-            )
-            for i, param in enumerate(self._search_space)
-        }
+        res = {param: samples_array[:, i] for i, param in enumerate(self._search_space)}
         # TODO(contramundum53): Remove this line after fixing log-Int hack.
         return {
             param: (
@@ -145,34 +133,51 @@ class _ParzenEstimator:
 
     def _calculate_distributions(
         self,
-        transformed_observations: np.ndarray,
+        observations: np.ndarray,
         param_name: str,
         search_space: BaseDistribution,
         parameters: _ParzenEstimatorParameters,
     ) -> _BatchedDistributions:
         if isinstance(search_space, CategoricalDistribution):
             return self._calculate_categorical_distributions(
-                transformed_observations, param_name, search_space, parameters
+                observations, param_name, search_space, parameters
             )
         else:
             assert isinstance(search_space, (FloatDistribution, IntDistribution))
+
+            low = search_space.low
+            high = search_space.high
+            if search_space.step is not None:
+                low -= search_space.step / 2
+                high += search_space.step / 2
             if search_space.log:
-                low = np.log(search_space.low)
-                high = np.log(search_space.high)
+                observations = np.log(observations)
+                low = np.log(low)
+                high = np.log(high)
+
+            mus = observations
+            sigmas = self._compute_sigmas(low, high, mus, parameters)
+            mus = np.append(mus, [0.5 * (low + high)])
+            sigmas = np.append(sigmas, [high - low])
+
+            if search_space.step is None:
+                if not search_space.log:
+                    return _BatchedTruncNormDistributions(
+                        mus, sigmas, search_space.low, search_space.high
+                    )
+                else:
+                    return _BatchedTruncLogNormDistributions(
+                        mus, sigmas, search_space.low, search_space.high
+                    )
             else:
-                low = search_space.low
-                high = search_space.high
-            step = search_space.step
-
-            # TODO(contramundum53): This is a hack and should be fixed.
-            if step is not None and search_space.log:
-                low = np.log(search_space.low - step / 2)
-                high = np.log(search_space.high + step / 2)
-                step = None
-
-            return self._calculate_numerical_distributions(
-                transformed_observations, low, high, step, parameters
-            )
+                if not search_space.log:
+                    return _BatchedDiscreteTruncNormDistributions(
+                        mus, sigmas, search_space.low, search_space.high, search_space.step
+                    )
+                else:
+                    return _BatchedDiscreteTruncLogNormDistributions(
+                        mus, sigmas, search_space.low, search_space.high, search_space.step
+                    )
 
     def _calculate_categorical_distributions(
         self,
@@ -210,68 +215,44 @@ class _ParzenEstimator:
         weights /= np.where(row_sums == 0, 1, row_sums)
         return _BatchedCategoricalDistributions(weights)
 
-    def _calculate_numerical_distributions(
-        self,
-        observations: np.ndarray,
-        low: float,
-        high: float,
-        step: float | None,
-        parameters: _ParzenEstimatorParameters,
-    ) -> _BatchedDistributions:
-        step_or_0 = step or 0
-
-        mus = observations
-
-        def compute_sigmas() -> np.ndarray:
-            if parameters.multivariate:
-                SIGMA0_MAGNITUDE = 0.2
-                sigma = (
-                    SIGMA0_MAGNITUDE
-                    * max(len(observations), 1) ** (-1.0 / (len(self._search_space) + 4))
-                    * (high - low + step_or_0)
-                )
-                sigmas = np.full(shape=(len(observations),), fill_value=sigma)
-            else:
-                # TODO(contramundum53): Remove dependency on prior_mu
-                prior_mu = 0.5 * (low + high)
-                mus_with_prior = np.append(mus, prior_mu)
-
-                sorted_indices = np.argsort(mus_with_prior)
-                sorted_mus = mus_with_prior[sorted_indices]
-                sorted_mus_with_endpoints = np.empty(len(mus_with_prior) + 2, dtype=float)
-                sorted_mus_with_endpoints[0] = low - step_or_0 / 2
-                sorted_mus_with_endpoints[1:-1] = sorted_mus
-                sorted_mus_with_endpoints[-1] = high + step_or_0 / 2
-
-                sorted_sigmas = np.maximum(
-                    sorted_mus_with_endpoints[1:-1] - sorted_mus_with_endpoints[0:-2],
-                    sorted_mus_with_endpoints[2:] - sorted_mus_with_endpoints[1:-1],
-                )
-
-                if not parameters.consider_endpoints and sorted_mus_with_endpoints.shape[0] >= 4:
-                    sorted_sigmas[0] = sorted_mus_with_endpoints[2] - sorted_mus_with_endpoints[1]
-                    sorted_sigmas[-1] = (
-                        sorted_mus_with_endpoints[-2] - sorted_mus_with_endpoints[-3]
-                    )
-
-                sigmas = sorted_sigmas[np.argsort(sorted_indices)][: len(observations)]
-
-            # We adjust the range of the 'sigmas' according to the 'consider_magic_clip' flag.
-            maxsigma = 1.0 * (high - low + step_or_0)
-            if parameters.consider_magic_clip:
-                # TODO(contramundum53): Remove dependency of minsigma on consider_prior.
-                n_kernels = len(observations) + 1  # NOTE(sawa3030): +1 for prior.
-                minsigma = 1.0 * (high - low + step_or_0) / min(100.0, (1.0 + n_kernels))
-            else:
-                minsigma = EPS
-            return np.asarray(np.clip(sigmas, minsigma, maxsigma))
-
-        sigmas = compute_sigmas()
-
-        mus = np.append(mus, [0.5 * (low + high)])
-        sigmas = np.append(sigmas, [1.0 * (high - low + step_or_0)])
-
-        if step is None:
-            return _BatchedTruncNormDistributions(mus, sigmas, low, high)
+    def _compute_sigmas(self, low, high, mus, parameters) -> np.ndarray:
+        if parameters.multivariate:
+            SIGMA0_MAGNITUDE = 0.2
+            sigma = (
+                SIGMA0_MAGNITUDE
+                * max(len(mus), 1) ** (-1.0 / (len(self._search_space) + 4))
+                * (high - low)
+            )
+            sigmas = np.full(shape=(len(mus),), fill_value=sigma)
         else:
-            return _BatchedDiscreteTruncNormDistributions(mus, sigmas, low, high, step)
+            # TODO(contramundum53): Remove dependency on prior_mu
+            prior_mu = 0.5 * (low + high)
+            mus_with_prior = np.append(mus, prior_mu)
+
+            sorted_indices = np.argsort(mus_with_prior)
+            sorted_mus = mus_with_prior[sorted_indices]
+            sorted_mus_with_endpoints = np.empty(len(mus_with_prior) + 2, dtype=float)
+            sorted_mus_with_endpoints[0] = low
+            sorted_mus_with_endpoints[1:-1] = sorted_mus
+            sorted_mus_with_endpoints[-1] = high
+
+            sorted_sigmas = np.maximum(
+                sorted_mus_with_endpoints[1:-1] - sorted_mus_with_endpoints[0:-2],
+                sorted_mus_with_endpoints[2:] - sorted_mus_with_endpoints[1:-1],
+            )
+
+            if not parameters.consider_endpoints and sorted_mus_with_endpoints.shape[0] >= 4:
+                sorted_sigmas[0] = sorted_mus_with_endpoints[2] - sorted_mus_with_endpoints[1]
+                sorted_sigmas[-1] = sorted_mus_with_endpoints[-2] - sorted_mus_with_endpoints[-3]
+
+            sigmas = sorted_sigmas[np.argsort(sorted_indices)][: len(mus)]
+
+        # We adjust the range of the 'sigmas' according to the 'consider_magic_clip' flag.
+        maxsigma = high - low
+        if parameters.consider_magic_clip:
+            # TODO(contramundum53): Remove dependency of minsigma on consider_prior.
+            n_kernels = len(mus) + 1  # NOTE(sawa3030): +1 for prior.
+            minsigma = (high - low) / min(100.0, (1.0 + n_kernels))
+        else:
+            minsigma = EPS
+        return np.asarray(np.clip(sigmas, minsigma, maxsigma))
