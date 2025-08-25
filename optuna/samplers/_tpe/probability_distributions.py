@@ -113,17 +113,17 @@ class _MixtureOfProductDistribution(NamedTuple):
                 highs_cont.append(np.log(d.high))
                 log_inds.append(i)
             elif isinstance(d, _BatchedDiscreteTruncNormDistributions):
+                disc_inds.append(i)
                 numerical_dists.append(d)
                 numerical_inds.append(i)
                 lows_cont.append(d.low - d.step / 2)
                 highs_cont.append(d.high + d.step / 2)
-                disc_inds.append(i)
             elif isinstance(d, _BatchedDiscreteTruncLogNormDistributions):
+                disc_inds.append(i)
                 numerical_dists.append(d)
                 numerical_inds.append(i)
                 lows_cont.append(np.log(d.low - d.step / 2))
                 highs_cont.append(np.log(d.high + d.step / 2))
-                disc_inds.append(i)
                 log_inds.append(i)
             else:
                 assert False
