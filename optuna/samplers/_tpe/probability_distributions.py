@@ -151,6 +151,10 @@ class _MixtureOfProductDistribution(NamedTuple):
 
     def log_pdf(self, x: np.ndarray) -> np.ndarray:
         weighted_log_pdf = np.zeros((len(x), len(self.weights)), dtype=np.float64)
+        cont_dists = []
+        x_cont = []
+        lows_cont = []
+        highs_cont = []
         for i, d in enumerate(self.distributions):
             if isinstance(d, _BatchedCategoricalDistributions):
                 xi = x[:, i, np.newaxis, np.newaxis].astype(np.int64)
@@ -158,21 +162,15 @@ class _MixtureOfProductDistribution(NamedTuple):
                     ..., 0
                 ]
             elif isinstance(d, _BatchedTruncNormDistributions):
-                weighted_log_pdf += _truncnorm.logpdf(
-                    x[:, np.newaxis, i],
-                    a=(d.low - d.mu) / d.sigma,
-                    b=(d.high - d.mu) / d.sigma,
-                    loc=d.mu,
-                    scale=d.sigma,
-                )
+                cont_dists.append(d)
+                x_cont.append(x[:, i])
+                lows_cont.append(d.low)
+                highs_cont.append(d.high)
             elif isinstance(d, _BatchedTruncLogNormDistributions):
-                weighted_log_pdf += _truncnorm.logpdf(
-                    np.log(x[:, np.newaxis, i]),
-                    a=(np.log(d.low) - d.mu) / d.sigma,
-                    b=(np.log(d.high) - d.mu) / d.sigma,
-                    loc=d.mu,
-                    scale=d.sigma,
-                )
+                cont_dists.append(d)
+                x_cont.append(np.log(x[:, i]))
+                lows_cont.append(np.log(d.low))
+                highs_cont.append(np.log(d.high))
             elif isinstance(d, _BatchedDiscreteTruncNormDistributions):
                 xi_uniq, xi_inv = np.unique(x[:, i], return_inverse=True)
                 mu_uniq, sigma_uniq, mu_sigma_inv = _unique_inverse_2d(d.mu, d.sigma)
@@ -186,15 +184,23 @@ class _MixtureOfProductDistribution(NamedTuple):
                     (d.high + d.step / 2 - mu_uniq) / sigma_uniq,
                 )[mu_sigma_inv]
             elif isinstance(d, _BatchedDiscreteTruncLogNormDistributions):
-                weighted_log_pdf += _truncnorm.logpdf(
-                    np.log(x[:, np.newaxis, i]),
-                    a=(np.log(d.low - d.step / 2) - d.mu) / d.sigma,
-                    b=(np.log(d.high + d.step / 2) - d.mu) / d.sigma,
-                    loc=d.mu,
-                    scale=d.sigma,
-                )
+                cont_dists.append(d)
+                x_cont.append(np.log(x[:, i]))
+                lows_cont.append(np.log(d.low - d.step / 2))
+                highs_cont.append(np.log(d.high + d.step / 2))
             else:
                 assert False
+
+        if len(x_cont):
+            mus_cont = np.asarray([d.mu for d in cont_dists]).T
+            sigmas_cont = np.asarray([d.sigma for d in cont_dists]).T
+            weighted_log_pdf += _truncnorm.logpdf(
+                np.asarray(x_cont).T[:, np.newaxis, :],
+                a=(np.asarray(lows_cont) - mus_cont) / sigmas_cont,
+                b=(np.asarray(highs_cont) - mus_cont) / sigmas_cont,
+                loc=mus_cont,
+                scale=sigmas_cont,
+            ).sum(axis=-1)
 
         weighted_log_pdf += np.log(self.weights[np.newaxis])
         max_ = weighted_log_pdf.max(axis=1)
