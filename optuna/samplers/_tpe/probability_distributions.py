@@ -45,7 +45,9 @@ class _BatchedDiscreteTruncLogNormDistributions(NamedTuple):
 _BatchedDistributions = Union[
     _BatchedCategoricalDistributions,
     _BatchedTruncNormDistributions,
+    _BatchedTruncLogNormDistributions,
     _BatchedDiscreteTruncNormDistributions,
+    _BatchedDiscreteTruncLogNormDistributions,
 ]
 
 

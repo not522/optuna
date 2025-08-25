@@ -108,10 +108,6 @@ class _ParzenEstimator:
         # unexpected size.
         return w
 
-    @staticmethod
-    def _is_log(dist: BaseDistribution) -> bool:
-        return isinstance(dist, (FloatDistribution, IntDistribution)) and dist.log
-
     def _transform(self, samples_dict: dict[str, np.ndarray]) -> np.ndarray:
         return np.array([samples_dict[param] for param in self._search_space]).T
 
@@ -144,40 +140,9 @@ class _ParzenEstimator:
             )
         else:
             assert isinstance(search_space, (FloatDistribution, IntDistribution))
-
-            low = search_space.low
-            high = search_space.high
-            if search_space.step is not None:
-                low -= search_space.step / 2
-                high += search_space.step / 2
-            if search_space.log:
-                observations = np.log(observations)
-                low = np.log(low)
-                high = np.log(high)
-
-            mus = observations
-            sigmas = self._compute_sigmas(low, high, mus, parameters)
-            mus = np.append(mus, [0.5 * (low + high)])
-            sigmas = np.append(sigmas, [high - low])
-
-            if search_space.step is None:
-                if not search_space.log:
-                    return _BatchedTruncNormDistributions(
-                        mus, sigmas, search_space.low, search_space.high
-                    )
-                else:
-                    return _BatchedTruncLogNormDistributions(
-                        mus, sigmas, search_space.low, search_space.high
-                    )
-            else:
-                if not search_space.log:
-                    return _BatchedDiscreteTruncNormDistributions(
-                        mus, sigmas, search_space.low, search_space.high, search_space.step
-                    )
-                else:
-                    return _BatchedDiscreteTruncLogNormDistributions(
-                        mus, sigmas, search_space.low, search_space.high, search_space.step
-                    )
+            return self._calculate_numerical_distributions(
+                observations, param_name, search_space, parameters
+            )
 
     def _calculate_categorical_distributions(
         self,
@@ -214,6 +179,47 @@ class _ParzenEstimator:
         row_sums = weights.sum(axis=1, keepdims=True)
         weights /= np.where(row_sums == 0, 1, row_sums)
         return _BatchedCategoricalDistributions(weights)
+
+    def _calculate_numerical_distributions(
+        self,
+        observations: np.ndarray,
+        param_name: str,
+        search_space: CategoricalDistribution,
+        parameters: _ParzenEstimatorParameters,
+    ) -> _BatchedDistributions:
+        low = search_space.low
+        high = search_space.high
+        if search_space.step is not None:
+            low -= search_space.step / 2
+            high += search_space.step / 2
+        if search_space.log:
+            observations = np.log(observations)
+            low = np.log(low)
+            high = np.log(high)
+
+        mus = observations
+        sigmas = self._compute_sigmas(low, high, mus, parameters)
+        mus = np.append(mus, [0.5 * (low + high)])
+        sigmas = np.append(sigmas, [high - low])
+
+        if search_space.step is None:
+            if not search_space.log:
+                return _BatchedTruncNormDistributions(
+                    mus, sigmas, search_space.low, search_space.high
+                )
+            else:
+                return _BatchedTruncLogNormDistributions(
+                    mus, sigmas, search_space.low, search_space.high
+                )
+        else:
+            if not search_space.log:
+                return _BatchedDiscreteTruncNormDistributions(
+                    mus, sigmas, search_space.low, search_space.high, search_space.step
+                )
+            else:
+                return _BatchedDiscreteTruncLogNormDistributions(
+                    mus, sigmas, search_space.low, search_space.high, search_space.step
+                )
 
     def _compute_sigmas(self, low, high, mus, parameters) -> np.ndarray:
         if parameters.multivariate:
