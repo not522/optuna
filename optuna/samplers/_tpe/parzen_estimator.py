@@ -140,9 +140,7 @@ class _ParzenEstimator:
             )
         else:
             assert isinstance(search_space, (FloatDistribution, IntDistribution))
-            return self._calculate_numerical_distributions(
-                observations, param_name, search_space, parameters
-            )
+            return self._calculate_numerical_distributions(observations, search_space, parameters)
 
     def _calculate_categorical_distributions(
         self,
@@ -183,8 +181,7 @@ class _ParzenEstimator:
     def _calculate_numerical_distributions(
         self,
         observations: np.ndarray,
-        param_name: str,
-        search_space: CategoricalDistribution,
+        search_space: FloatDistribution | IntDistribution,
         parameters: _ParzenEstimatorParameters,
     ) -> _BatchedDistributions:
         low = search_space.low
@@ -221,7 +218,13 @@ class _ParzenEstimator:
                     mus, sigmas, search_space.low, search_space.high, search_space.step
                 )
 
-    def _compute_sigmas(self, low, high, mus, parameters) -> np.ndarray:
+    def _compute_sigmas(
+        self,
+        low: float,
+        high: float,
+        mus: np.ndarray,
+        parameters: _ParzenEstimatorParameters,
+    ) -> np.ndarray:
         if parameters.multivariate:
             SIGMA0_MAGNITUDE = 0.2
             sigma = (
