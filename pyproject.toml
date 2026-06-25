@@ -59,7 +59,6 @@ document = [
   "sphinx-notfound-page",
   "sphinx_rtd_theme>=1.2.0",
   "torch",
-  "torchvision",
 ]
 optional = [
   "boto3",  # optuna/artifacts/_boto3.py.
@@ -114,7 +113,6 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
-torchvision = { index = "pytorch-cpu" }
 
 [project.urls]
 homepage = "https://optuna.org/"
